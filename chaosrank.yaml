@@ -1,0 +1,13 @@
+weights:
+  blast_radius: 0.6
+  fragility: 0.4
+
+fragility:
+  decay_lambda: 0.10
+  burst_window_minutes: 5
+
+graph:
+  min_call_frequency: 1
+
+output:
+  top_n: 5
