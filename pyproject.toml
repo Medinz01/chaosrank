@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chaosrank-cli"
+version = "0.1.0"
+description = "Risk-driven chaos experiment scheduler — rank which microservice to chaos-test next"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    {name = "Manideep Sale", email = "mdsmanideep@gmail.com"}
+]
+keywords = [
+    "chaos-engineering",
+    "microservices",
+    "site-reliability-engineering",
+    "sre",
+    "distributed-systems",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Monitoring",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = [
+    "networkx>=3.2",
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "typer>=0.9",
+    "rich>=13.0",
+    "pyyaml>=6.0",
+    "ijson>=3.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/Medinz01/chaosrank"
+Repository = "https://github.com/Medinz01/chaosrank"
+"Bug Tracker" = "https://github.com/Medinz01/chaosrank/issues"
+Changelog = "https://github.com/Medinz01/chaosrank/blob/main/CHANGELOG.md"
+
+[project.scripts]
+chaosrank = "chaosrank.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1",
+]
+benchmark = [
+    "matplotlib>=3.7",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["chaosrank*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

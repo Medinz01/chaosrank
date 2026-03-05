@@ -1,0 +1,68 @@
+{
+  "data": [
+    {
+      "traceID": "trace-frontend-checkout",
+      "spans": [
+        {"spanID": "s1",  "processID": "p_frontend",        "references": []},
+        {"spanID": "s2",  "processID": "p_cartservice",     "references": [{"refType": "CHILD_OF", "spanID": "s1"}]},
+        {"spanID": "s3",  "processID": "p_productcatalog",  "references": [{"refType": "CHILD_OF", "spanID": "s1"}]},
+        {"spanID": "s4",  "processID": "p_recommendation",  "references": [{"refType": "CHILD_OF", "spanID": "s1"}]},
+        {"spanID": "s5",  "processID": "p_checkout",        "references": [{"refType": "CHILD_OF", "spanID": "s1"}]},
+        {"spanID": "s6",  "processID": "p_payment",         "references": [{"refType": "CHILD_OF", "spanID": "s5"}]},
+        {"spanID": "s7",  "processID": "p_email",           "references": [{"refType": "CHILD_OF", "spanID": "s5"}]},
+        {"spanID": "s8",  "processID": "p_shipping",        "references": [{"refType": "CHILD_OF", "spanID": "s5"}]},
+        {"spanID": "s9",  "processID": "p_cartservice",     "references": [{"refType": "CHILD_OF", "spanID": "s5"}]},
+        {"spanID": "s10", "processID": "p_currency",        "references": [{"refType": "CHILD_OF", "spanID": "s5"}]},
+        {"spanID": "s11", "processID": "p_productcatalog",  "references": [{"refType": "CHILD_OF", "spanID": "s4"}]},
+        {"spanID": "s12", "processID": "p_productcatalog",  "references": [{"refType": "CHILD_OF", "spanID": "s8"}]},
+        {"spanID": "s13", "processID": "p_currency",        "references": [{"refType": "CHILD_OF", "spanID": "s3"}]},
+        {"spanID": "s14", "processID": "p_adservice",       "references": [{"refType": "CHILD_OF", "spanID": "s1"}]},
+        {"spanID": "s15", "processID": "p_productcatalog",  "references": [{"refType": "CHILD_OF", "spanID": "s2"}]}
+      ],
+      "processes": {
+        "p_frontend":       {"serviceName": "frontend"},
+        "p_cartservice":    {"serviceName": "cartservice"},
+        "p_productcatalog": {"serviceName": "productcatalogservice"},
+        "p_recommendation": {"serviceName": "recommendationservice"},
+        "p_checkout":       {"serviceName": "checkoutservice"},
+        "p_payment":        {"serviceName": "paymentservice"},
+        "p_email":          {"serviceName": "emailservice"},
+        "p_shipping":       {"serviceName": "shippingservice"},
+        "p_currency":       {"serviceName": "currencyservice"},
+        "p_adservice":      {"serviceName": "adservice"},
+        "p_loadgenerator":  {"serviceName": "loadgenerator"}
+      }
+    },
+    {
+      "traceID": "trace-frontend-checkout-2",
+      "spans": [
+        {"spanID": "t1",  "processID": "p_frontend",        "references": []},
+        {"spanID": "t2",  "processID": "p_cartservice",     "references": [{"refType": "CHILD_OF", "spanID": "t1"}]},
+        {"spanID": "t3",  "processID": "p_productcatalog",  "references": [{"refType": "CHILD_OF", "spanID": "t1"}]},
+        {"spanID": "t4",  "processID": "p_checkout",        "references": [{"refType": "CHILD_OF", "spanID": "t1"}]},
+        {"spanID": "t5",  "processID": "p_payment",         "references": [{"refType": "CHILD_OF", "spanID": "t4"}]},
+        {"spanID": "t6",  "processID": "p_shipping",        "references": [{"refType": "CHILD_OF", "spanID": "t4"}]},
+        {"spanID": "t7",  "processID": "p_currency",        "references": [{"refType": "CHILD_OF", "spanID": "t4"}]},
+        {"spanID": "t8",  "processID": "p_cartservice",     "references": [{"refType": "CHILD_OF", "spanID": "t4"}]},
+        {"spanID": "t9",  "processID": "p_email",           "references": [{"refType": "CHILD_OF", "spanID": "t4"}]},
+        {"spanID": "t10", "processID": "p_productcatalog",  "references": [{"refType": "CHILD_OF", "spanID": "t3"}]},
+        {"spanID": "t11", "processID": "p_recommendation",  "references": [{"refType": "CHILD_OF", "spanID": "t1"}]},
+        {"spanID": "t12", "processID": "p_productcatalog",  "references": [{"refType": "CHILD_OF", "spanID": "t11"}]},
+        {"spanID": "t13", "processID": "p_adservice",       "references": [{"refType": "CHILD_OF", "spanID": "t1"}]},
+        {"spanID": "t14", "processID": "p_currency",        "references": [{"refType": "CHILD_OF", "spanID": "t3"}]}
+      ],
+      "processes": {
+        "p_frontend":       {"serviceName": "frontend"},
+        "p_cartservice":    {"serviceName": "cartservice"},
+        "p_productcatalog": {"serviceName": "productcatalogservice"},
+        "p_recommendation": {"serviceName": "recommendationservice"},
+        "p_checkout":       {"serviceName": "checkoutservice"},
+        "p_payment":        {"serviceName": "paymentservice"},
+        "p_email":          {"serviceName": "emailservice"},
+        "p_shipping":       {"serviceName": "shippingservice"},
+        "p_currency":       {"serviceName": "currencyservice"},
+        "p_adservice":      {"serviceName": "adservice"}
+      }
+    }
+  ]
+}

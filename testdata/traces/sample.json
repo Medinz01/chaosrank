@@ -1,0 +1,36 @@
+{
+  "data": [
+    {
+      "traceID": "trace001",
+      "spans": [
+        {"spanID": "s1", "processID": "p1", "references": []},
+        {"spanID": "s2", "processID": "p2", "references": [{"refType": "CHILD_OF", "spanID": "s1"}]},
+        {"spanID": "s3", "processID": "p3", "references": [{"refType": "CHILD_OF", "spanID": "s2"}]},
+        {"spanID": "s4", "processID": "p4", "references": [{"refType": "CHILD_OF", "spanID": "s2"}]},
+        {"spanID": "s5", "processID": "p5", "references": [{"refType": "CHILD_OF", "spanID": "s2"}]}
+      ],
+      "processes": {
+        "p1": {"serviceName": "frontend"},
+        "p2": {"serviceName": "payment-service"},
+        "p3": {"serviceName": "auth-service"},
+        "p4": {"serviceName": "inventory-service"},
+        "p5": {"serviceName": "notification-service"}
+      }
+    },
+    {
+      "traceID": "trace002",
+      "spans": [
+        {"spanID": "s6", "processID": "p1", "references": []},
+        {"spanID": "s7", "processID": "p2", "references": [{"refType": "CHILD_OF", "spanID": "s6"}]},
+        {"spanID": "s8", "processID": "p3", "references": [{"refType": "CHILD_OF", "spanID": "s7"}]},
+        {"spanID": "s9", "processID": "p4", "references": [{"refType": "CHILD_OF", "spanID": "s7"}]}
+      ],
+      "processes": {
+        "p1": {"serviceName": "frontend"},
+        "p2": {"serviceName": "payment-service"},
+        "p3": {"serviceName": "auth-service"},
+        "p4": {"serviceName": "inventory-service"}
+      }
+    }
+  ]
+}

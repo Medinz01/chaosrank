@@ -1,0 +1,10 @@
+services:
+  chaosrank:
+    build: .
+    volumes:
+      - .:/app
+      # Mount your local tracing dataset:
+      # docker compose run -v /path/to/tracing-data:/data chaosrank
+    working_dir: /app
+    stdin_open: true
+    tty: true
