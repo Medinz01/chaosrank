@@ -8,7 +8,8 @@
 ## 1. Overview
 
 ChaosRank is a CLI tool. No server, no database, no running cluster required.
-Input: trace export + incident history. Output: ranked service list.
+Input: trace export + optional incident history + optional async topology.
+Output: ranked service list.
 
 ```
 traces.json ──────────────────────────────────────────────────────────────┐
@@ -21,7 +22,10 @@ incidents.csv ──────────────────────
                                                                    │       + β·FR  │
                     ┌──────────────┐                               │               │
 traces.json ───────►│ graph builder│──► blast_radius ────────────►│               │
-                    └──────────────┘                               └───────────────┘
+                    └──────────────┘ ▲                             └───────────────┘
+                                     │
+async-deps.yaml ─────────────────────┘
+(merged before scoring)
 ```
 
 ---
@@ -30,12 +34,18 @@ traces.json ───────►│ graph builder│──► blast_radius �
 
 ```
 chaosrank/
-├── cli.py                    # Entry point. Typer commands: rank, graph.
+├── cli.py                    # Entry point. Typer commands: rank, graph, convert.
 │                             # Orchestrates the pipeline. Owns config loading.
+│
+├── adapters/                 # Ingestion layer — external format → internal format
+│   ├── base.py               # AsyncDepsAdapter ABC — one method: convert(path) -> list[dict]
+│   ├── asyncapi.py           # AsyncAPI 2.x spec → async-deps.yaml entries
+│   └── kafka.py              # Kafka topic export JSON → async-deps.yaml entries
 │
 ├── parser/
 │   ├── jaeger.py             # Jaeger JSON → {(caller, callee): weight} edge map
 │   ├── incidents.py          # incidents.csv → ServiceIncidents dataclass
+│   ├── async_deps.py         # async-deps.yaml → merged into nx.DiGraph
 │   └── normalize.py          # Service name normalization pipeline
 │
 ├── graph/
@@ -56,7 +66,128 @@ chaosrank/
 
 ---
 
-## 3. Data Flow — `chaosrank rank`
+## 3. Ingestion Layer
+
+### 3.1 Design principle
+
+ChaosRank has two categories of input: trace data and async topology data.
+Both flow through an explicit ingestion layer before reaching the scoring pipeline.
+The scoring pipeline (blast_radius, fragility, ranker) never sees raw external formats.
+
+```
+External source → [ingestion layer] → internal representation → scoring pipeline
+```
+
+The ingestion layer has two responsibilities:
+  1. Format conversion — translate external formats to internal representation
+  2. User visibility — the user controls and verifies what was extracted
+     before it affects rankings
+
+### 3.2 Trace ingestion (current)
+
+Traces are currently privileged: Jaeger JSON is parsed directly by `parser/jaeger.py`
+with no adapter abstraction. This is a known asymmetry.
+
+When OTel OTLP support is added (v0.3), it will follow the adapter pattern:
+
+```
+Jaeger JSON  → jaeger.py (direct, existing)
+OTel OTLP    → adapters/otlp.py → graph edges
+```
+
+At that point the ingestion architecture becomes fully symmetric:
+
+```
+trace format → adapter → graph edges   → graph builder
+async format → adapter → manifest      → async_deps.py → graph edges
+```
+
+The canonical internal representation is **typed graph edges**, not the manifest.
+The manifest (`async-deps.yaml`) is the interface for manual input and for
+formats that do not yet have an adapter. It is not a permanent internal abstraction.
+
+As the adapter layer matures, adapters may eventually normalize directly to
+graph edges, bypassing the manifest entirely. The manifest will then become
+one input mode — the manual one — rather than the required intermediate format.
+
+### 3.3 Async topology ingestion
+
+Async dependencies are described in `async-deps.yaml` and merged into the graph
+before blast radius scoring. This corrects the ranking inversion described in
+`algorithm.md §10` — async producers with many consumers were scoring zero
+blast radius because async calls leave no trace spans.
+
+The manifest schema (v1):
+
+```yaml
+version: "1"               # schema version — checked by parse_async_deps()
+dependencies:
+  - producer: order-service
+    consumer: inventory-service
+    channel: kafka
+    topic: order-placed
+  - producer: payment-service
+    consumer: notification-service
+    channel: sqs
+    queue: payment-events
+```
+
+`version: "1"` is required. parse_async_deps() emits a warning if absent
+(backwards compatibility with pre-versioned manifests) and raises on
+unrecognised future versions.
+
+### 3.4 Adapter contract
+
+All async topology adapters implement `AsyncDepsAdapter` from `adapters/base.py`:
+
+```python
+class AsyncDepsAdapter(ABC):
+    def convert(self, input_path: Path) -> list[dict]:
+        """Return list of dependency dicts matching async-deps.yaml schema."""
+
+    def source_format(self) -> str:
+        """Return the --from flag value this adapter handles."""
+```
+
+Adapters return raw names — normalization happens downstream in `parse_async_deps()`.
+Adapters are responsible for extraction only. A broken adapter is isolated;
+it cannot affect the scoring pipeline.
+
+### 3.5 Supported adapters
+
+  Format          Flag              Input
+  ──────────────────────────────────────────────────────────────────────
+  AsyncAPI 2.x    --from asyncapi   directory of single-service specs,
+                                    or a single multi-service spec file
+  Kafka topics    --from kafka      kafka-topics.json export
+                                    (see docs/async-deps-guide.md)
+
+  Not supported:  source code parsers (C#, Java, Go integration events)
+                  → language-specific, out of scope
+                  → see docs/async-deps-guide.md for manual extraction guide
+
+### 3.6 User workflow
+
+The `convert` command is explicit and separate from `rank` by design.
+The user sees what was extracted before it touches their rankings.
+
+```bash
+# Step 1 — convert and verify
+chaosrank convert --from kafka --input ./kafka-topics.json --dry-run
+chaosrank convert --from kafka --input ./kafka-topics.json --output ./async-deps.yaml
+
+# Step 2 — rank using the verified manifest
+chaosrank rank --traces ./traces.json --async-deps ./async-deps.yaml
+```
+
+A future direct-mode flag on `rank` (e.g. `--asyncapi spec.yaml`) is planned for
+CI/CD pipelines where intermediate file inspection is not required. The architecture
+already supports this — adapters are isolated and callable directly. The explicit
+two-step workflow remains the documented default.
+
+---
+
+## 4. Data Flow — `chaosrank rank`
 
 ### Step 1: Parse traces → build graph
 
@@ -75,6 +206,42 @@ builder.py
           - Emits warning if graph has <5 edges
 ```
 
+### Step 1b: Merge async dependencies (optional)
+
+```
+async_deps.py
+  input:  async-deps.yaml, nx.DiGraph G
+  output: nx.DiGraph G with async edges added
+
+  - Validates manifest version field
+  - Normalizes producer/consumer names via normalize.py
+  - Assigns weight = median(trace_edge_weights) to async edges
+  - Annotates async edges: edge_type="async", channel, topic
+  - Skips: malformed entries, self-loops, duplicate sync edges
+  - Async edges render as dashed lines in `chaosrank graph --output dot`
+
+CURRENT LIMITATION — async edge propagation semantics:
+  Async edges are currently merged with the same weight as sync edges
+  and treated identically in blast radius scoring. This is a simplification.
+
+  Sync failure propagation:  A → B
+    failure propagates immediately, high probability
+
+  Async failure propagation: A → topic → B
+    producer failure rarely affects consumers directly;
+    events queue, retry, and DLQ patterns absorb failures;
+    consumer failure does not affect the producer
+
+  A service producing to 12 Kafka consumers does not carry the same blast
+  radius as a synchronous gateway calling 12 services. The current model
+  overestimates blast radius for async-heavy producers.
+
+  The graph already annotates edge_type="async" on all async edges,
+  preserving the information needed for a future fix. A configurable
+  async_weight_factor (multiplier on async edge weights before scoring,
+  default ~0.5) is planned for v0.3. No schema migration will be required.
+```
+
 ### Step 2: Compute blast radius
 
 ```
@@ -90,9 +257,10 @@ blast_radius.py
   Both components normalized to [0,1] before blending.
   Default: w_pr=0.5, w_od=0.5. Configurable via blast_centrality_weights.
 
-  NOTE: The implementation uses pagerank(G) and in_degree_centrality(G) directly.
-  An earlier design described pagerank(G^T) + out_degree_centrality(G^T).
-  These are NOT equivalent. See algorithm.md §4.2 for the full correction.
+  NOTE: The scoring pipeline code is unchanged by the introduction of async edges.
+  However, because async edges change graph topology, blast radius scores change
+  when --async-deps is provided. This is expected and correct — the graph now
+  reflects a more complete picture of the system's dependency structure.
 ```
 
 ### Step 3: Parse incidents → compute fragility
@@ -144,12 +312,13 @@ suggest.py
 ```
 table.py    → Rich terminal table (default)
 json_out.py → JSON array with reasoning field per service
+              blast_radius_notes field added when --async-deps provided
 litmus.py   → LitmusChaos ChaosEngine manifest YAML
 ```
 
 ---
 
-## 4. Graph Convention
+## 5. Graph Convention
 
 All components share a single graph convention:
 
@@ -160,12 +329,22 @@ This is the natural trace direction. It is never reversed internally.
 The callee model (services called by many = high blast radius) is implemented
 by using pagerank(G) and in_degree_centrality(G) directly — no reversal needed.
 
+Async edges follow the same convention:
+  **producer → consumer**
+  order-service → inventory-service  (via kafka topic: order-placed)
+
 The `reverse_graph()` utility in builder.py exists for visualization and
 future use, but is not used in the blast radius computation.
 
+Edge attributes:
+  weight      int     call frequency (sync) or median trace weight (async)
+  edge_type   str     "sync" (default) | "async"
+  channel     str     async only: "kafka" | "rabbitmq" | "sqs" | etc.
+  topic       str     async only: topic or queue name
+
 ---
 
-## 5. Config Loading
+## 6. Config Loading
 
 `chaosrank.yaml` is loaded at CLI entry (cli.py). Defaults are hardcoded in
 each module and overridden by config values. Config is passed explicitly
@@ -189,7 +368,7 @@ output:
 
 ---
 
-## 6. Service Name Normalization
+## 7. Service Name Normalization
 
 Normalization runs at parse time in normalize.py, not at graph build time.
 This ensures the edge map has canonical names before any graph structure is built.
@@ -200,12 +379,17 @@ Pipeline:
   3. Strip pod hash: `-[a-z0-9]{5,10}$`
   4. Apply user aliases from config
 
+Adapter output is NOT pre-normalized — adapters return raw names from source specs.
+Normalization happens in parse_async_deps() after adapter output is received.
+This keeps adapters testable in isolation: adapter tests verify extraction,
+not normalization correctness.
+
 Phantom node detection: services appearing only once across all traces
 emit a warning — likely a normalization miss or a one-off call.
 
 ---
 
-## 7. Cold Start
+## 8. Cold Start
 
 No incident data → fragility = 0 for all services.
 
@@ -219,7 +403,7 @@ Ranking is effectively blast-radius-only. CLI emits a warning.
 
 ---
 
-## 8. Output Formats
+## 9. Output Formats
 
 ### Table (default)
 
@@ -228,8 +412,10 @@ Fragility, Suggested Fault, Confidence. Top-N rows shown (configurable).
 
 ### JSON
 
-Array of objects. Each object includes all table fields plus a `reasoning` field:
-a human-readable explanation of why the service was ranked at its position.
+Array of objects. Each object includes all table fields plus:
+  reasoning           human-readable explanation of the ranking
+  blast_radius_notes  present when --async-deps provided; explains async
+                      edge weight assumption (median trace weight)
 
 ### LitmusChaos YAML
 
@@ -243,7 +429,7 @@ Fault-specific env vars are populated based on suggested fault type:
 
 ---
 
-## 9. Benchmark Architecture
+## 10. Benchmark Architecture
 
 The benchmark is a standalone simulation — it does not run a live cluster.
 
@@ -272,7 +458,7 @@ DOI: 10.13012/B2IDB-6738796_V1
 
 ---
 
-## 10. Dependency Summary
+## 11. Dependency Summary
 
 ```
 networkx>=3.2     graph construction, PageRank, in-degree centrality
@@ -280,7 +466,7 @@ numpy>=1.26       numerical operations
 scipy>=1.11       z-score normalization
 typer>=0.9        CLI framework
 rich>=13.0        terminal table rendering
-pyyaml>=6.0       config loading, LitmusChaos YAML generation
+pyyaml>=6.0       config loading, LitmusChaos YAML generation, manifest I/O
 ijson>=3.2        streaming JSON parser for large trace files
 ```
 
@@ -289,11 +475,13 @@ All computation is local and offline.
 
 ---
 
-## 11. What This Is Not
+## 12. What This Is Not
 
-- Does not inject faults           → use LitmusChaos, Chaos Mesh, or Gremlin
-- Does not derive steady-state     → bring your own Prometheus thresholds
+- Does not inject faults             → use LitmusChaos, Chaos Mesh, or Gremlin
+- Does not derive steady-state       → bring your own Prometheus thresholds
 - Does not verify experiment results → check your dashboards
 - Does not require a running cluster → offline analysis on trace exports
-- Does not support async deps v1   → --async-deps flag planned for v0.2
-- Does not support OTel OTLP v1   → explicitly v0.2 roadmap
+- Does not support OTel OTLP v1      → v0.3 roadmap (trace adapter)
+- Does not parse source code         → adapters target structured formats only;
+                                       see docs/async-deps-guide.md for manual
+                                       topology extraction from codebases

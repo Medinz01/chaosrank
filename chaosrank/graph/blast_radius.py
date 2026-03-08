@@ -7,11 +7,14 @@ logger = logging.getLogger(__name__)
 DEFAULT_W_PR = 0.5
 DEFAULT_W_OD = 0.5
 
+ASYNC_SERVICE_PATTERNS = ("kafka", "sqs", "rabbitmq", "pubsub", "nats", "kinesis")
+
 
 def compute_blast_radius(
     G: nx.DiGraph,
     w_pr: float = DEFAULT_W_PR,
     w_od: float = DEFAULT_W_OD,
+    async_deps_provided: bool = False,
 ) -> dict[str, float]:
     """Compute a blended blast radius score per service: w_pr * PageRank(G) + w_od * in_degree_centrality(G), both normalized to [0, 1]."""
     if abs(w_pr + w_od - 1.0) > 1e-6:
@@ -21,14 +24,13 @@ def compute_blast_radius(
         logger.warning("Empty graph — no blast radius scores to compute")
         return {}
 
-    GT = G.reverse(copy=True)
+    _warn_async_blindspot(G, async_deps_provided)
 
-    # PageRank on G (not GT): random walk rewards frequently-called services, which is the intended signal
     try:
         pr = nx.pagerank(G, weight="weight")
     except nx.PowerIterationFailedConvergence:
         logger.warning("PageRank failed to converge — falling back to uniform scores")
-        pr = {n: 1.0 / GT.number_of_nodes() for n in GT.nodes()}
+        pr = {n: 1.0 / G.number_of_nodes() for n in G.nodes()}
 
     if G.number_of_nodes() > 1:
         od = nx.in_degree_centrality(G)
@@ -47,7 +49,7 @@ def compute_blast_radius(
 
     scores: dict[str, float] = {
         node: w_pr * pr_norm.get(node, 0.0) + w_od * od_norm.get(node, 0.0)
-        for node in GT.nodes()
+        for node in G.nodes()
     }
 
     logger.info(
@@ -56,3 +58,26 @@ def compute_blast_radius(
     )
 
     return scores
+
+
+def _warn_async_blindspot(G: nx.DiGraph, async_deps_provided: bool) -> None:
+    async_nodes = [n for n in G.nodes() if any(p in n for p in ASYNC_SERVICE_PATTERNS)]
+
+    if async_deps_provided:
+        async_edge_count = sum(
+            1 for _, _, data in G.edges(data=True)
+            if data.get("edge_type") == "async"
+        )
+        logger.info(
+            "Async deps provided — %d async edges merged into graph. "
+            "Blast radius scores include async dependencies.",
+            async_edge_count,
+        )
+    elif async_nodes:
+        logger.warning(
+            "Async messaging services detected in trace data. "
+            "Blast radius scores may be incomplete for event-driven dependencies. "
+            "Manually verify top-ranked services against known async dependency maps. "
+            "Use --async-deps to provide a manifest. Detected: %s",
+            ", ".join(sorted(async_nodes)),
+        )
