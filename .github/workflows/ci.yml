@@ -81,3 +81,28 @@ jobs:
             --traces benchmarks/real_traces/social_network.json \
             --incidents benchmarks/real_traces/social_network_incidents.csv \
             --output litmus | grep "kind: ChaosEngine"
+
+      - name: Smoke test — convert kafka
+        run: |
+          chaosrank convert \
+            --from kafka \
+            --input benchmarks/examples/kafka-topics.json \
+            --dry-run
+
+      - name: Smoke test — convert asyncapi
+        run: |
+          chaosrank convert \
+            --from asyncapi \
+            --input benchmarks/examples/asyncapi-specs/ \
+            --dry-run
+
+      - name: Smoke test — rank with async deps
+        run: |
+          chaosrank convert \
+            --from kafka \
+            --input benchmarks/examples/kafka-topics.json \
+            --output /tmp/async-deps.yaml
+          chaosrank rank \
+            --traces benchmarks/real_traces/social_network.json \
+            --async-deps /tmp/async-deps.yaml \
+            --top-n 5
