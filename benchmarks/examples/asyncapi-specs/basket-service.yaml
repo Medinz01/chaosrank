@@ -1,0 +1,17 @@
+asyncapi: '2.6.0'
+info:
+  title: basket-service
+  version: '1.0.0'
+  description: Shopping basket service
+
+channels:
+  basket/checkout:
+    publish:
+      operationId: checkoutBasket
+      bindings:
+        kafka:
+          topic: basket-checkout
+      message:
+        name: BasketCheckout
+        payload:
+          type: object

@@ -1,0 +1,17 @@
+asyncapi: '2.6.0'
+info:
+  title: inventory-service
+  version: '1.0.0'
+  description: Inventory management service
+
+channels:
+  order/placed:
+    subscribe:
+      operationId: onOrderPlaced
+      bindings:
+        kafka:
+          topic: order-placed
+      message:
+        name: OrderPlaced
+        payload:
+          type: object

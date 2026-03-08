@@ -1,0 +1,19 @@
+{
+  "topics": [
+    {
+      "name": "order-placed",
+      "producer": "order-service",
+      "consumers": ["inventory-service", "notification-service", "audit-service"]
+    },
+    {
+      "name": "payment-events",
+      "producer": "payment-service",
+      "consumers": ["notification-service", "fraud-service"]
+    },
+    {
+      "name": "basket-checkout",
+      "producer": "basket-service",
+      "consumers": ["order-service"]
+    }
+  ]
+}

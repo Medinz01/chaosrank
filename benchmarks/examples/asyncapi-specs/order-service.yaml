@@ -1,0 +1,28 @@
+asyncapi: '2.6.0'
+info:
+  title: order-service
+  version: '1.0.0'
+  description: Order processing service
+
+channels:
+  order/placed:
+    publish:
+      operationId: placeOrder
+      bindings:
+        kafka:
+          topic: order-placed
+      message:
+        name: OrderPlaced
+        payload:
+          type: object
+
+  basket/checkout:
+    subscribe:
+      operationId: onBasketCheckout
+      bindings:
+        kafka:
+          topic: basket-checkout
+      message:
+        name: BasketCheckout
+        payload:
+          type: object
