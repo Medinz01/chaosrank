@@ -5,7 +5,7 @@
 ![CI](https://github.com/Medinz01/chaosrank/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-107%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-157%20passing-brightgreen)
 ![PyPI](https://img.shields.io/pypi/v/chaosrank-cli)
 
 ChaosRank analyzes your service dependency graph and incident history to rank which service to break first — so your chaos experiments find real weaknesses instead of wasting cycles on low-risk services.
@@ -149,12 +149,25 @@ chaosrank rank \
   --output litmus | kubectl apply -f -
 ```
 
+### With async topology (Kafka, SQS, RabbitMQ)
+
+```bash
+# Step 1 — convert your async topology source
+chaosrank convert --from kafka --input ./kafka-topics.json --dry-run
+chaosrank convert --from kafka --input ./kafka-topics.json --output ./async-deps.yaml
+
+# Step 2 — rank with async deps merged
+chaosrank rank --traces ./traces.json --async-deps ./async-deps.yaml
+```
+
 ### Visualize the dependency graph
 
 ```bash
-chaosrank graph \
-  --traces ./traces.json \
-  --output dot | dot -Tpng > graph.png
+# Sync topology only
+chaosrank graph --traces ./traces.json --output dot | dot -Tpng > graph.png
+
+# With async edges (shown as dashed lines)
+chaosrank graph --traces ./traces.json --async-deps ./async-deps.yaml --output dot | dot -Tpng > graph.png
 ```
 
 ---
@@ -257,18 +270,31 @@ ChaosRank does not claim novelty in any individual technique. The contribution i
 
 | Limitation | Impact | Status |
 |---|---|---|
-| Async dependencies (Kafka, SQS, etc.) | Ranking inversion risk — async callees appear as zero-dependent | Warning emitted at startup. `--async-deps` flag planned for v0.2 |
-| Jaeger JSON only | Narrow input support | OTel OTLP planned for v0.2 |
+| Async propagation semantics | Blast radius overestimated for async-heavy producers | `edge_type=async` annotated — `async_weight_factor` planned for v0.3 |
+| Async deps: source code | No C#/Java/Go event class parsers | See `docs/async-deps-guide.md` for manual extraction |
+| Jaeger JSON only | Narrow trace input support | OTel OTLP trace adapter planned for v0.3 |
 | Single-region topology | Misses cross-region blast radius | Future work |
 | Static alpha/beta | Optimal weights vary by system | Future: learned weights |
 | Z-score less stable below 10 services | Directional scores only | Documented |
 | Point-in-time request volume | Requires enriched incident CSV | Falls back gracefully |
 
-### Async dependency blindspot
+### Async dependency support
 
-ChaosRank builds its dependency graph from synchronous trace spans. Services that produce to Kafka topics, SQS queues, or other async channels **do not appear as dependents** in trace data. A Kafka producer with 10 downstream consumers will show zero blast radius.
+ChaosRank builds its dependency graph from synchronous trace spans. Services that produce to Kafka topics, SQS queues, or other async channels **do not appear as dependents** in trace data without additional input. A Kafka producer with 10 downstream consumers would show zero blast radius from traces alone.
 
-If your architecture is heavily event-driven, manually verify top-ranked services against your async dependency maps. The `--async-deps` flag (v0.2 roadmap) will accept a manifest describing async relationships.
+Use `--async-deps` to describe your async topology:
+
+```bash
+# From a Kafka topic export
+chaosrank convert --from kafka --input ./kafka-topics.json --output ./async-deps.yaml
+chaosrank rank --traces ./traces.json --async-deps ./async-deps.yaml
+
+# From AsyncAPI 2.x specs
+chaosrank convert --from asyncapi --input ./specs/ --output ./async-deps.yaml
+chaosrank rank --traces ./traces.json --async-deps ./async-deps.yaml
+```
+
+Use `--dry-run` to verify extraction before it affects rankings. See `docs/async-deps-guide.md` for the manifest format and manual extraction guide.
 
 ---
 
@@ -278,7 +304,8 @@ If your architecture is heavily event-driven, manually verify top-ranked service
 - **Does not derive steady-state** → bring your own Prometheus thresholds
 - **Does not verify results** → check your dashboards or Steadybit
 - **Does not need a running cluster** → offline analysis on trace exports
-- **Does not support OTel OTLP v1** → explicitly v0.2 roadmap
+- **Does not support OTel OTLP v1** → v0.3 roadmap (trace adapter)
+- **Does not parse source code** → see `docs/async-deps-guide.md` for manual topology extraction
 
 ---
 
@@ -326,10 +353,12 @@ chaosrank rank --traces traces.json --incidents incidents.csv --verbose
 
 | Suite | Tests | What it validates |
 |---|---|---|
+| `test_parser.py` | 53 | Normalization round-trip, incident parsing, Jaeger edge extraction |
 | `test_fragility.py` | 21 | Burst dedup, per-incident normalization, fragility preservation, z-score, decay |
 | `test_blast_radius.py` | 15 | Callee model, chain ordering, blend weights, graph reversal |
 | `test_ranker.py` | 18 | Risk math, cold start, combined signal, fault suggestion |
-| `test_parser.py` | 53 | Normalization round-trip, incident parsing, Jaeger edge extraction |
+| `test_async_deps.py` | 19 | Manifest parser: edge merging, weight assignment, normalization, conflict handling |
+| `test_adapters.py` | 36 | AsyncAPI adapter (edge/topic/binding extraction), Kafka adapter (edge extraction, malformed input) |
 
 The fragility preservation test is load-bearing for the benchmark: it asserts that a medium-traffic service with disproportionately high incident rate ranks above a high-traffic service with proportional incidents — the case that post-hoc normalization gets wrong.
 
@@ -340,11 +369,16 @@ The fragility preservation test is load-bearing for the benchmark: it asserts th
 ```
 chaosrank/
 ├── chaosrank/
-│   ├── cli.py                    # Typer entrypoint
+│   ├── cli.py                    # Typer entrypoint: rank, graph, convert
+│   ├── adapters/
+│   │   ├── base.py               # AsyncDepsAdapter ABC
+│   │   ├── asyncapi.py           # AsyncAPI 2.x → async-deps.yaml
+│   │   └── kafka.py              # Kafka topic export → async-deps.yaml
 │   ├── parser/
 │   │   ├── normalize.py          # Service name normalization
 │   │   ├── jaeger.py             # Jaeger JSON trace parser
-│   │   └── incidents.py          # Incident CSV parser
+│   │   ├── incidents.py          # Incident CSV parser
+│   │   └── async_deps.py         # async-deps.yaml → graph edges
 │   ├── graph/
 │   │   ├── builder.py            # NetworkX DiGraph construction
 │   │   ├── blast_radius.py       # Blended centrality scoring
@@ -357,7 +391,7 @@ chaosrank/
 │       ├── table.py              # Rich table renderer
 │       ├── json_out.py           # JSON output with reasoning
 │       └── litmus.py             # LitmusChaos ChaosEngine manifest
-├── tests/                        # 107 tests
+├── tests/                        # 157 tests
 ├── benchmarks/
 │   ├── convert_deathstar.py      # DeathStarBench → Jaeger JSON converter
 │   ├── extract_incidents.py      # Anomaly traces → incident CSV extractor
@@ -382,8 +416,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, testing, and PR guidelines.
 ## Documentation
 
 - [docs/algorithm.md](docs/algorithm.md) — full mathematical derivation
-- [docs/architecture.md](docs/architecture.md) — component map and data flow
-- [docs/future-work.md](docs/future-work.md) — v0.2 roadmap
+- [docs/architecture.md](docs/architecture.md) — component map, data flow, ingestion layer design
+- [docs/async-deps-guide.md](docs/async-deps-guide.md) — async manifest format and manual extraction guide
+- [docs/future-work.md](docs/future-work.md) — roadmap
 
 ## Changelog
 

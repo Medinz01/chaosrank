@@ -448,12 +448,10 @@ the full file into memory.
 
 ---
 
-## 10. Critical Caveat — Async/Queue Dependency Blindspot
+## 10. Async/Queue Dependency Support
 
-This caveat is elevated above the standard limitations table because it represents
-a potential systematic ranking inversion, not merely a missing feature.
+### 10.1 The Original Problem
 
-THE PROBLEM:
 ChaosRank builds its dependency graph from synchronous trace spans. In many modern
 architectures, the most critical dependencies flow through async channels:
   - Kafka / Pulsar topic producers and consumers
@@ -463,24 +461,64 @@ architectures, the most critical dependencies flow through async channels:
 
 None of these produce parent-child span relationships in Jaeger traces.
 
-THE CONSEQUENCE:
 A service that produces to a Kafka topic consumed by 10 downstream services appears
 in ChaosRank's graph as having zero trace-visible dependents. It receives a low
-blast radius score and is deprioritized. But it may have the highest actual blast
-radius in the system.
-
-This is not a coverage gap — it is a potential ranking inversion.
+blast radius score and is deprioritized — a potential systematic ranking inversion,
+not merely a coverage gap.
 
 WHO IS AFFECTED:
   Primarily synchronous (REST, gRPC request-response): largely unaffected
   Heavy async messaging (event sourcing, CQRS, stream processing): significant risk
 
-MITIGATION IN V1:
-ChaosRank emits a warning at startup when async messaging services are detected
-in service names (pattern matching on: kafka, sqs, rabbitmq, pubsub, nats, kinesis).
+### 10.2 Mitigation — --async-deps flag (implemented in v0.2)
 
-The --async-deps flag (v0.2 roadmap) will accept a dependency manifest describing
-async relationships, merging them into the graph before blast radius scoring.
+The --async-deps flag accepts an async-deps.yaml manifest describing async
+relationships. These edges are merged into the graph before blast radius scoring.
+
+  chaosrank rank --traces ./traces.json --async-deps ./async-deps.yaml
+
+The manifest is populated either manually or via the `chaosrank convert` command:
+
+  chaosrank convert --from asyncapi --input ./specs/ --output ./async-deps.yaml
+  chaosrank convert --from kafka    --input ./kafka-topics.json --output ./async-deps.yaml
+
+Supported adapters: AsyncAPI 2.x specs, Kafka topic export JSON.
+See architecture.md §3 for the full ingestion layer design.
+
+When --async-deps is provided, the startup warning is suppressed and replaced
+with a confirmation log showing the count of async edges merged.
+
+### 10.3 Remaining Limitation — Async Edge Propagation Semantics
+
+Introducing async edges into the graph corrects the ranking inversion for
+async-heavy producers. However, the current model treats async edges identically
+to sync edges in blast radius scoring. This is a simplification.
+
+Sync failure propagation:
+  A -> B
+  Failure in A propagates to B immediately, with high probability.
+
+Async failure propagation:
+  A -> topic -> B
+  Producer failure (A) rarely affects consumers (B) directly.
+  Consumer failure (B) does not affect the producer (A).
+  Events queue, retry, and DLQ patterns absorb transient failures.
+  The coupling is looser than synchronous calls.
+
+CONSEQUENCE:
+A service producing to 12 Kafka consumers does not have the same blast radius
+as a synchronous gateway calling 12 services. The current model overestimates
+blast radius for async-heavy producers.
+
+The graph already annotates edge_type="async" on all async edges, preserving
+the information needed for a future fix:
+
+  async_weight_factor = configurable multiplier on async edge weights (v0.3)
+  default ~0.5 -- reflects lower failure propagation probability
+  tunable per deployment based on observed failure patterns
+
+No schema migration will be required when async_weight_factor is implemented.
+The edge annotation is already in place.
 
 ---
 
@@ -488,14 +526,17 @@ async relationships, merging them into the graph before blast radius scoring.
 
   Limitation                    Impact                        Status
   ──────────────────────────────────────────────────────────────────────
-  Async dependencies (full)     Ranking inversion risk        See Section 10
+  Async propagation semantics   Blast radius overestimated    See Section 10.3
+                                for async-heavy producers     async_weight_factor v0.3
+  Async deps: source code       No C#/Java/Go parsers         docs/async-deps-guide.md
   Single-region topology        Misses cross-region radius    Future work
-  Jaeger format only (v1)       Narrow input support          v0.2: OTel OTLP
+  Jaeger format only            Narrow trace input support    v0.3: OTel OTLP adapter
   Static alpha/beta             Optimal weights vary          Future: learned
   Blend ratio (w_pr/w_od)       Topology-dependent tuning     Configurable
   Betweenness centrality        Transitive paths missing      Future: opt flag
   Point-in-time request vol     Requires enriched CSV         Falls back to avg
   Z-score below 10 services     Less statistically stable     Interpret directionally
+  Manifest as internal format   May be bypassed by adapters   Tracked in architecture.md
 
 ---
 

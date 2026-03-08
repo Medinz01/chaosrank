@@ -3,12 +3,22 @@ import sys
 from typing import TextIO
 
 
-def render_json(ranked: list[dict], stream: TextIO = sys.stdout) -> None:
+def render_json(
+    ranked: list[dict],
+    stream: TextIO = sys.stdout,
+    async_deps_provided: bool = False,
+) -> None:
     """Serialize ranked services to JSON, adding a human-readable reasoning field to each entry."""
     output = []
     for row in ranked:
         entry = dict(row)
         entry["reasoning"] = _build_reasoning(row)
+        if async_deps_provided:
+            entry["blast_radius_notes"] = (
+                "Blast radius includes async edges from --async-deps manifest. "
+                "Async edges are assigned median trace edge weight — "
+                "call frequency data is unavailable for async channels."
+            )
         output.append(entry)
 
     json.dump(output, stream, indent=2)
