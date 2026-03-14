@@ -3,7 +3,6 @@ from datetime import datetime
 
 
 def render_litmus(ranked: list[dict], top_n: int = 1) -> str:
-    """Generate a LitmusChaos ChaosEngine YAML manifest for the top-ranked service(s)."""
     if not ranked:
         return "# ChaosRank: no services to target\n"
 

@@ -24,6 +24,7 @@ app = typer.Typer(
 console = Console()
 
 _SUPPORTED_FORMATS = ("asyncapi", "kafka")
+_TRACE_FORMATS = ("jaeger", "otlp")
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -45,8 +46,12 @@ def _load_config(config_path: Path) -> dict:
 def rank(
     traces: Path = typer.Option(
         ..., "--traces", "-t",
-        help="Path to Jaeger JSON trace export.",
+        help="Path to trace export file.",
         exists=True, file_okay=True, dir_okay=False,
+    ),
+    trace_format: str = typer.Option(
+        "jaeger", "--format", "-f",
+        help="Trace format: jaeger (default) | otlp",
     ),
     incidents: Optional[Path] = typer.Option(
         None, "--incidents", "-i",
@@ -89,8 +94,14 @@ def rank(
         help="Enable debug logging.",
     ),
 ) -> None:
-    """Rank services by chaos experiment priority."""
     _setup_logging(verbose)
+
+    if trace_format not in _TRACE_FORMATS:
+        console.print(
+            f"[red]Unknown trace format: {trace_format!r}. "
+            f"Supported: {', '.join(_TRACE_FORMATS)}[/red]"
+        )
+        raise typer.Exit(1)
 
     cfg = _load_config(config)
 
@@ -111,9 +122,9 @@ def rank(
     if aliases:
         load_aliases(aliases)
 
-    typer.echo("Parsing traces...", err=True)
+    typer.echo(f"Parsing traces ({trace_format})...", err=True)
     try:
-        G = build_graph(traces, min_call_frequency=min_call_freq)
+        G = build_graph(traces, min_call_frequency=min_call_freq, trace_format=trace_format)
     except Exception as e:
         console.print(f"[red]Failed to parse traces: {e}[/red]")
         raise typer.Exit(1)
@@ -175,8 +186,12 @@ def rank(
 def graph(
     traces: Path = typer.Option(
         ..., "--traces", "-t",
-        help="Path to Jaeger JSON trace export.",
+        help="Path to trace export file.",
         exists=True,
+    ),
+    trace_format: str = typer.Option(
+        "jaeger", "--format", "-f",
+        help="Trace format: jaeger (default) | otlp",
     ),
     async_deps: Optional[Path] = typer.Option(
         None, "--async-deps", "-a",
@@ -191,13 +206,19 @@ def graph(
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    """Visualize the service dependency graph."""
     _setup_logging(verbose)
+
+    if trace_format not in _TRACE_FORMATS:
+        console.print(
+            f"[red]Unknown trace format: {trace_format!r}. "
+            f"Supported: {', '.join(_TRACE_FORMATS)}[/red]"
+        )
+        raise typer.Exit(1)
 
     cfg = _load_config(config)
     min_call_freq = cfg.get("graph", {}).get("min_call_frequency", 10)
 
-    G = build_graph(traces, min_call_frequency=min_call_freq)
+    G = build_graph(traces, min_call_frequency=min_call_freq, trace_format=trace_format)
 
     if async_deps:
         if not async_deps.exists():
@@ -247,25 +268,6 @@ def convert(
         help="Enable debug logging.",
     ),
 ) -> None:
-    """Convert an async topology source file to async-deps.yaml format.
-
-    Supported formats:
-
-      asyncapi   AsyncAPI 2.x spec (YAML or JSON)
-
-      kafka      Kafka consumer groups export
-                 (kafka-consumer-groups.sh --describe --all-groups --output json)
-
-    Examples:
-
-      chaosrank convert --from asyncapi --input ./asyncapi.yaml --output ./async-deps.yaml
-
-      chaosrank convert --from kafka --input ./consumer-groups.json --output ./async-deps.yaml
-
-      chaosrank convert --from asyncapi --input ./asyncapi.yaml --dry-run
-
-    The output file can be passed directly to chaosrank rank --async-deps.
-    """
     _setup_logging(verbose)
 
     if from_format not in _SUPPORTED_FORMATS:

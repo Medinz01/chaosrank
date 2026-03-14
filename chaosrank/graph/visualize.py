@@ -12,7 +12,6 @@ def to_dot(
     scores: Optional[dict[str, float]] = None,
     highlight_top_n: int = 3,
 ) -> str:
-    """Export the dependency graph as a Graphviz DOT string, optionally highlighting top-n services by blast radius."""
     lines = [
         "digraph chaosrank {",
         '  graph [rankdir=LR, fontname="Helvetica", bgcolor="#fafafa"];',

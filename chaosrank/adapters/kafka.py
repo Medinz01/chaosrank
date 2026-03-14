@@ -1,38 +1,3 @@
-"""Kafka adapter for ChaosRank.
-
-Converts a Kafka topic export JSON file into async-deps.yaml format.
-
-Expected input schema:
-    {
-      "topics": [
-        {
-          "name":      "order-placed",       # required — topic name
-          "producer":  "order-service",      # required — service that publishes to this topic
-          "consumers": [                     # required — services that consume from this topic
-            "inventory-service",
-            "notification-service"
-          ]
-        },
-        ...
-      ]
-    }
-
-How to produce this file:
-    Option A — from your Kafka UI (AKHQ, Kafdrop, Kafka UI):
-      Export topic list, add producer/consumer fields from your service registry.
-
-    Option B — from kafka-python (one-off script):
-      from kafka.admin import KafkaAdminClient
-      client = KafkaAdminClient(bootstrap_servers="localhost:9092")
-      topics = client.list_topics()
-      # Add producer/consumer knowledge from your team's runbook or code
-
-    Option C — manually:
-      List your topics from: kafka-topics.sh --list --bootstrap-server <host>
-      Fill in producers and consumers from your service documentation.
-
-Output: list of dependency dicts compatible with async-deps.yaml schema.
-"""
 import json
 import logging
 from pathlib import Path
@@ -48,7 +13,6 @@ class KafkaAdapter(AsyncDepsAdapter):
         return "kafka"
 
     def convert(self, input_path: Path) -> list[dict]:
-        """Parse Kafka topic export JSON and return dependency dicts."""
         if input_path.is_dir():
             raise ValueError(
                 "--input must be a file for --from kafka. "

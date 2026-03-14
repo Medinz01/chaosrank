@@ -11,11 +11,6 @@ logger = logging.getLogger(__name__)
 
 
 def parse_async_deps(path: Path, G: nx.DiGraph) -> nx.DiGraph:
-    """Parse an async dependency manifest and merge edges into G.
-
-    Async edges are assigned weight equal to median(trace_edge_weights).
-    Edge type is annotated as 'async' for downstream consumers.
-    """
     with open(path, "r", encoding="utf-8") as f:
         manifest = yaml.safe_load(f) or {}
 

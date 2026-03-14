@@ -11,9 +11,17 @@ logger = logging.getLogger(__name__)
 def build_graph(
     traces_path: Path,
     min_call_frequency: int = 10,
+    trace_format: str = "jaeger",
 ) -> nx.DiGraph:
-    """Build a weighted directed dependency graph (caller → callee) from Jaeger traces."""
-    edges = parse_traces(traces_path, min_call_frequency=min_call_frequency)
+    if trace_format == "jaeger":
+        edges = parse_traces(traces_path, min_call_frequency=min_call_frequency)
+    elif trace_format == "otlp":
+        from chaosrank.parser.otlp import parse_otlp
+        edges = parse_otlp(traces_path, min_call_frequency=min_call_frequency)
+    else:
+        raise ValueError(
+            f"Unknown trace format: {trace_format!r}. Supported: jaeger, otlp"
+        )
 
     G = nx.DiGraph()
     for (caller, callee), weight in edges.items():
@@ -33,5 +41,4 @@ def build_graph(
 
 
 def reverse_graph(G: nx.DiGraph) -> nx.DiGraph:
-    """Return G^T so edge direction encodes 'depended upon by' rather than 'calls'."""
     return G.reverse(copy=True)
