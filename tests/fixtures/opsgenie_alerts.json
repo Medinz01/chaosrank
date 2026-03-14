@@ -1,0 +1,45 @@
+{
+  "data": [
+    {
+      "id": "OPG001",
+      "createdAt": "2026-02-10T08:00:00.000Z",
+      "message": "High latency on payment endpoint",
+      "priority": "P1",
+      "status": "resolved",
+      "tags": ["service:payment-service", "env:prod"],
+      "details": {}
+    },
+    {
+      "id": "OPG002",
+      "createdAt": "2026-02-14T15:00:00.000Z",
+      "message": "Error rate exceeded threshold",
+      "priority": "P2",
+      "status": "resolved",
+      "tags": ["env:prod"],
+      "details": {"service": "cart-service"}
+    },
+    {
+      "id": "OPG003",
+      "createdAt": "2026-02-20T11:00:00.000Z",
+      "message": "Connection timeout to database",
+      "priority": "P3",
+      "status": "open",
+      "tags": [],
+      "details": {}
+    },
+    {
+      "id": "OPG004",
+      "createdAt": "2026-02-22T09:00:00.000Z",
+      "message": "Disk space low",
+      "priority": "P4",
+      "status": "open",
+      "tags": ["service:storage-service"],
+      "details": {}
+    }
+  ],
+  "took": 0.1,
+  "requestId": "req-001",
+  "paging": {
+    "last": "https://api.opsgenie.com/v2/alerts?offset=0&limit=100"
+  }
+}

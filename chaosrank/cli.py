@@ -25,6 +25,7 @@ console = Console()
 
 _SUPPORTED_FORMATS = ("asyncapi", "kafka")
 _TRACE_FORMATS = ("jaeger", "otlp")
+_INCIDENT_FORMATS = ("pagerduty", "alertmanager", "grafana-oncall", "opsgenie")
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -307,6 +308,98 @@ def convert(
         typer.echo(f"Written {len(dependencies)} dependencies to {output}", err=True)
     else:
         sys.stdout.write(manifest)
+
+
+@app.command()
+def incidents(
+    from_format: str = typer.Option(..., "--from", help=f"Source: {', '.join(_INCIDENT_FORMATS)}"),
+    token:       Optional[str]  = typer.Option(None, "--token",   help="API key / token"),
+    url:         Optional[str]  = typer.Option(None, "--url",     help="Base URL (Alertmanager, Grafana OnCall)"),
+    window:      str            = typer.Option("30d", "--window", "-w", help="Lookback window, e.g. 7d, 30d"),
+    output:      Optional[Path] = typer.Option(None, "--output",  "-o", help="Output CSV path (omit to print to stdout)"),
+    dry_run:     bool           = typer.Option(False, "--dry-run",      help="Print row count + sample without writing"),
+    verbose:     bool           = typer.Option(False, "--verbose", "-v"),
+) -> None:
+    _setup_logging(verbose)
+
+    if from_format not in _INCIDENT_FORMATS:
+        console.print(
+            f"[red]Unknown --from '{from_format}'. "
+            f"Supported: {', '.join(_INCIDENT_FORMATS)}[/red]"
+        )
+        raise typer.Exit(1)
+
+    # Parse window (e.g. "30d" → 30)
+    try:
+        if not window.endswith("d"):
+            raise ValueError
+        window_days = int(window[:-1])
+        if window_days <= 0:
+            raise ValueError
+    except ValueError:
+        console.print("[red]--window must be a positive integer followed by 'd', e.g. 7d or 30d[/red]")
+        raise typer.Exit(1)
+
+    # Instantiate adapter
+    try:
+        if from_format == "pagerduty":
+            if not token:
+                console.print("[red]--token is required for PagerDuty[/red]")
+                raise typer.Exit(1)
+            from chaosrank.incident_adapters.pagerduty import PagerDutyAdapter
+            adapter = PagerDutyAdapter(api_key=token)
+
+        elif from_format == "alertmanager":
+            if not url:
+                console.print("[red]--url is required for Alertmanager (e.g. http://alertmanager:9093)[/red]")
+                raise typer.Exit(1)
+            from chaosrank.incident_adapters.alertmanager import AlertmanagerAdapter
+            adapter = AlertmanagerAdapter(url=url, token=token)
+
+        elif from_format == "grafana-oncall":
+            if not url or not token:
+                console.print("[red]--url and --token are required for Grafana OnCall[/red]")
+                raise typer.Exit(1)
+            from chaosrank.incident_adapters.grafana_oncall import GrafanaOnCallAdapter
+            adapter = GrafanaOnCallAdapter(url=url, token=token)
+
+        elif from_format == "opsgenie":
+            if not token:
+                console.print("[red]--token is required for Opsgenie[/red]")
+                raise typer.Exit(1)
+            from chaosrank.incident_adapters.opsgenie import OpsgenieAdapter
+            adapter = OpsgenieAdapter(api_key=token)
+
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[red]Failed to initialise adapter: {e}[/red]")
+        raise typer.Exit(1)
+
+    console.print(f"[dim]Fetching incidents from {from_format} (window: {window})…[/dim]", err=True)
+
+    try:
+        fetched = adapter.fetch(window_days=window_days)
+    except Exception as e:
+        console.print(f"[red]Fetch failed: {e}[/red]")
+        raise typer.Exit(1)
+
+    if not fetched:
+        console.print("[yellow]No incidents returned for the given window. Output will be empty.[/yellow]", err=True)
+
+    if dry_run:
+        console.print(f"[dim]{len(fetched)} incidents fetched.[/dim]")
+        for inc in fetched[:5]:
+            console.print(f"  {inc.timestamp.isoformat()}  {inc.service:<30} {inc.severity:<10} {inc.type}")
+        if len(fetched) > 5:
+            console.print(f"  … and {len(fetched) - 5} more.")
+        return
+
+    from chaosrank.incident_adapters.csv_export import incidents_to_csv
+    count = incidents_to_csv(fetched, output)
+
+    if output:
+        typer.echo(f"Written {count} incidents to {output}", err=True)
 
 
 if __name__ == "__main__":
