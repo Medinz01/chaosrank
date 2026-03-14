@@ -1,0 +1,41 @@
+[
+  {
+    "labels": {
+      "alertname": "HighLatency",
+      "service": "payment-service",
+      "severity": "warning"
+    },
+    "startsAt": "2026-02-10T08:00:00Z",
+    "endsAt": "2026-02-10T08:30:00Z",
+    "status": {"state": "resolved", "silencedBy": [], "inhibitedBy": []}
+  },
+  {
+    "labels": {
+      "alertname": "ErrorRateCritical",
+      "job": "cart-service",
+      "severity": "critical"
+    },
+    "startsAt": "2026-02-14T15:00:00Z",
+    "endsAt": "0001-01-01T00:00:00Z",
+    "status": {"state": "active", "silencedBy": [], "inhibitedBy": []}
+  },
+  {
+    "labels": {
+      "alertname": "ConnectionTimeout",
+      "app": "auth-service",
+      "severity": "high"
+    },
+    "startsAt": "2026-02-20T11:00:00Z",
+    "endsAt": "2026-02-20T11:15:00Z",
+    "status": {"state": "resolved", "silencedBy": [], "inhibitedBy": []}
+  },
+  {
+    "labels": {
+      "alertname": "DiskFull",
+      "severity": "info"
+    },
+    "startsAt": "2026-02-21T09:00:00Z",
+    "endsAt": "0001-01-01T00:00:00Z",
+    "status": {"state": "active", "silencedBy": [], "inhibitedBy": []}
+  }
+]
