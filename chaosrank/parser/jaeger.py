@@ -43,7 +43,6 @@ def _process_span_tags(span: dict, edges: dict, seen_services: dict) -> None:
 
 
 def parse_traces(path: Path, min_call_frequency: int = 10) -> dict[tuple[str, str], int]:
-    """Parse a Jaeger trace file and return a weighted service call graph above the frequency threshold."""
     edges: dict[tuple[str, str], int] = {}
     seen_services: dict[str, int] = {}
 

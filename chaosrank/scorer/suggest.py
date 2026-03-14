@@ -26,7 +26,6 @@ def _effective_incidents(
     incidents: list[Incident],
     decay_lambda: float,
 ) -> list[Incident]:
-    # Incidents beyond -log(0.05)/lambda days contribute < 5% after decay and are excluded
     threshold_days = -math.log(0.05) / decay_lambda
     now_ts = datetime.utcnow()
     return [
@@ -53,7 +52,6 @@ def suggest_fault(
     service_incidents: dict[str, ServiceIncidents],
     decay_lambda: float = DEFAULT_LAMBDA,
 ) -> tuple[str, str]:
-    """Return (fault_type, confidence) for the most likely chaos experiment to run against a service."""
     si = service_incidents.get(service)
     if si is None or not si.incidents:
         return DEFAULT_FAULT, "low"

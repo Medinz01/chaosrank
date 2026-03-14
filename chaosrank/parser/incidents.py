@@ -18,7 +18,6 @@ ASYNC_SERVICE_PATTERNS = ("kafka", "sqs", "rabbitmq", "pubsub", "nats", "kinesis
 
 @dataclass
 class Incident:
-    """A single incident event associated with a service."""
     timestamp: datetime
     service: str
     type: str
@@ -35,7 +34,6 @@ class Incident:
 
 @dataclass
 class ServiceIncidents:
-    """All incidents grouped under a single service."""
     service: str
     incidents: list[Incident] = field(default_factory=list)
 
@@ -47,10 +45,7 @@ class ServiceIncidents:
 
 def parse_incidents(
     path: Path,
-    # severity_weights: dict[str, float] | None = None,
 ) -> dict[str, ServiceIncidents]:
-    """Parse a CSV incident log and return incidents grouped by service."""
-    # weights = severity_weights or DEFAULT_SEVERITY_WEIGHTS
     results: dict[str, ServiceIncidents] = {}
     skipped = 0
 

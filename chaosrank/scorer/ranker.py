@@ -19,7 +19,6 @@ def rank_services(
     base_window: float = 5.0,
     severity_weights: dict[str, float] | None = None,
 ) -> list[dict]:
-    """Compute risk(v) = alpha * blast_radius(v) + beta * fragility(v) and return services ranked by risk descending."""
     if abs(alpha + beta - 1.0) > 1e-6:
         raise ValueError(f"alpha + beta must equal 1.0, got {alpha + beta}")
 

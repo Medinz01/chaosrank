@@ -8,7 +8,6 @@ def render_json(
     stream: TextIO = sys.stdout,
     async_deps_provided: bool = False,
 ) -> None:
-    """Serialize ranked services to JSON, adding a human-readable reasoning field to each entry."""
     output = []
     for row in ranked:
         entry = dict(row)

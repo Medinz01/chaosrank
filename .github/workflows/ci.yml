@@ -106,3 +106,11 @@ jobs:
             --traces benchmarks/real_traces/social_network.json \
             --async-deps /tmp/async-deps.yaml \
             --top-n 5
+
+      - name: Smoke test — rank with OTLP traces
+        run: |
+          chaosrank rank \
+            --traces tests/fixtures/otlp_trace.json \
+            --format otlp \
+            --output json \
+            --top-n 5 | python -c "import sys, json; d=json.load(sys.stdin); assert len(d) > 0, 'Expected ranked output, got empty list'"
