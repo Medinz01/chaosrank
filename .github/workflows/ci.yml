@@ -114,3 +114,43 @@ jobs:
             --format otlp \
             --output json \
             --top-n 5 | python -c "import sys, json; d=json.load(sys.stdin); assert len(d) > 0, 'Expected ranked output, got empty list'"
+
+      - name: Smoke test — incidents command is registered
+        run: chaosrank incidents --help | grep -q "pagerduty"
+
+      - name: Smoke test — incidents unknown format exits non-zero
+        run: |
+          chaosrank incidents --from unknown-source 2>&1 | grep -q "Unknown"
+          # Command must exit non-zero
+          ! chaosrank incidents --from unknown-source 2>/dev/null
+
+      - name: Smoke test — incidents missing required arg exits non-zero
+        run: |
+          # pagerduty requires --token; omitting it should exit non-zero
+          ! chaosrank incidents --from pagerduty --window 7d 2>/dev/null
+
+      - name: Smoke test — incidents dry-run via mock HTTP
+        run: |
+          python - <<'EOF'
+          # Patch urllib at the process level and invoke the CLI adapter directly
+          import json
+          from unittest.mock import MagicMock, patch
+          from pathlib import Path
+
+          fixture = json.loads(Path("tests/fixtures/pagerduty_incidents.json").read_text())
+          body = json.dumps(fixture).encode()
+          resp = MagicMock()
+          resp.read.return_value = body
+          resp.__enter__ = lambda s: s
+          resp.__exit__ = MagicMock(return_value=False)
+
+          with patch("urllib.request.urlopen", return_value=resp):
+              from chaosrank.incident_adapters.pagerduty import PagerDutyAdapter
+              from chaosrank.incident_adapters.csv_export import incidents_to_csv
+              incidents = PagerDutyAdapter(api_key="fake").fetch(window_days=30)
+              assert len(incidents) > 0, f"Expected incidents, got {incidents}"
+              count = incidents_to_csv(incidents, Path("/tmp/smoke_incidents.csv"))
+              assert count == len(incidents)
+
+          print(f"OK — {len(incidents)} incidents written to /tmp/smoke_incidents.csv")
+          EOF
