@@ -5,11 +5,10 @@ No network calls are made; urllib.request.urlopen is patched throughout.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from chaosrank.incident_adapters.base import infer_type, normalize_severity
 from chaosrank.incident_adapters.pagerduty import PagerDutyAdapter

@@ -5,7 +5,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
-from chaosrank.incident_adapters.base import IncidentAdapter, infer_type, normalize_severity
+from chaosrank.incident_adapters.base import IncidentAdapter, infer_type
 from chaosrank.parser.incidents import Incident
 from chaosrank.parser.normalize import normalize
 
