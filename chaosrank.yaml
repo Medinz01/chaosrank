@@ -7,7 +7,8 @@ fragility:
   burst_window_minutes: 5
 
 graph:
-  min_call_frequency: 1
+  min_call_frequency: 10
+  async_weight_factor: 0.5
 
 output:
   top_n: 5
