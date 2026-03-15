@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chaosrank-cli"
-version = "0.2.0"
+version = "0.3.0"
 description = "Risk-driven chaos experiment scheduler — rank which microservice to chaos-test next"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,7 +20,7 @@ keywords = [
     "distributed-systems",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
     "Programming Language :: Python :: 3",

@@ -153,4 +153,32 @@ jobs:
               assert count == len(incidents)
 
           print(f"OK — {len(incidents)} incidents written to /tmp/smoke_incidents.csv")
-          EOF
+          EOF
+
+      - name: Smoke test — async_weight_factor flag accepted
+        run: |
+          chaosrank convert \
+            --from kafka \
+            --input benchmarks/examples/kafka-topics.json \
+            --output /tmp/async-deps-wf.yaml
+          chaosrank rank \
+            --traces benchmarks/real_traces/social_network.json \
+            --async-deps /tmp/async-deps-wf.yaml \
+            --async-weight-factor 0.3 \
+            --output json \
+            --top-n 5 | python -c "import sys, json; d=json.load(sys.stdin); assert len(d) > 0"
+
+      - name: Smoke test — direct-mode --kafka flag
+        run: |
+          chaosrank rank \
+            --traces benchmarks/real_traces/social_network.json \
+            --kafka benchmarks/examples/kafka-topics.json \
+            --output json \
+            --top-n 5 | python -c "import sys, json; d=json.load(sys.stdin); assert len(d) > 0"
+
+      - name: Smoke test — sensitivity script runs
+        run: |
+          pip install matplotlib --quiet
+          python benchmarks/sensitivity/run_sensitivity.py
+          test -f benchmarks/sensitivity/results/summary.txt
+          grep "STABLE" benchmarks/sensitivity/results/summary.txt
