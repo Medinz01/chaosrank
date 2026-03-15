@@ -66,6 +66,25 @@ def rank(
             "Async edges are assigned weight equal to median trace edge weight."
         ),
     ),
+    kafka: Optional[Path] = typer.Option(
+        None, "--kafka",
+        help=(
+            "Path to Kafka topic export JSON. "
+            "Direct-mode shortcut: converts and merges async topology without "
+            "an intermediate async-deps.yaml file. "
+            "Equivalent to: chaosrank convert --from kafka --input <path> | rank --async-deps -"
+        ),
+        exists=True, file_okay=True, dir_okay=False,
+    ),
+    asyncapi: Optional[Path] = typer.Option(
+        None, "--asyncapi",
+        help=(
+            "Path to AsyncAPI 2.x spec file or directory. "
+            "Direct-mode shortcut: converts and merges async topology without "
+            "an intermediate async-deps.yaml file."
+        ),
+        exists=True, file_okay=True, dir_okay=True,
+    ),
     async_weight_factor: float = typer.Option(
         0.5, "--async-weight-factor",
         help=(
@@ -120,6 +139,12 @@ def rank(
         )
         raise typer.Exit(1)
 
+    # Conflict check — at most one async topology source
+    async_sources = sum([async_deps is not None, kafka is not None, asyncapi is not None])
+    if async_sources > 1:
+        console.print("[red]Specify at most one of --async-deps, --kafka, --asyncapi[/red]")
+        raise typer.Exit(1)
+
     cfg = _load_config(config)
 
     _alpha = alpha or cfg.get("weights", {}).get("blast_radius", 0.6)
@@ -153,7 +178,40 @@ def rank(
         console.print("[red]Error: No services found in trace data.[/red]")
         raise typer.Exit(1)
 
-    if async_deps:
+    # Resolve direct-mode flags → async_deps manifest in a temp file if needed
+    _async_provided = False
+    if kafka or asyncapi:
+        import tempfile
+        _async_provided = True
+        typer.echo("Converting async topology (direct mode)...", err=True)
+        try:
+            if kafka:
+                from chaosrank.adapters.kafka import KafkaAdapter
+                deps = KafkaAdapter().convert(kafka)
+            else:
+                from chaosrank.adapters.asyncapi import AsyncAPIAdapter
+                deps = AsyncAPIAdapter().convert(asyncapi)
+        except Exception as e:
+            console.print(f"[red]Direct-mode conversion failed: {e}[/red]")
+            raise typer.Exit(1)
+
+        manifest = yaml.dump({"dependencies": deps}, default_flow_style=False, sort_keys=False)
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False, prefix="chaosrank-async-"
+        ) as tmp:
+            tmp.write(manifest)
+            _tmp_async_deps = Path(tmp.name)
+
+        try:
+            G = parse_async_deps(_tmp_async_deps, G)
+        except Exception as e:
+            console.print(f"[red]Failed to merge async deps: {e}[/red]")
+            raise typer.Exit(1)
+        finally:
+            _tmp_async_deps.unlink(missing_ok=True)
+
+    elif async_deps:
+        _async_provided = True
         if not async_deps.exists():
             console.print(f"[red]Async deps file not found: {async_deps}[/red]")
             raise typer.Exit(1)
@@ -167,7 +225,7 @@ def rank(
     typer.echo("Computing blast radius...", err=True)
     blast = compute_blast_radius(
         G,
-        async_deps_provided=async_deps is not None,
+        async_deps_provided=_async_provided,
         async_weight_factor=_async_weight_factor,
     )
 
@@ -221,6 +279,16 @@ def graph(
         None, "--async-deps", "-a",
         help="Path to async dependency manifest YAML.",
     ),
+    kafka: Optional[Path] = typer.Option(
+        None, "--kafka",
+        help="Path to Kafka topic export JSON. Direct-mode shortcut.",
+        exists=True, file_okay=True, dir_okay=False,
+    ),
+    asyncapi: Optional[Path] = typer.Option(
+        None, "--asyncapi",
+        help="Path to AsyncAPI 2.x spec file or directory. Direct-mode shortcut.",
+        exists=True, file_okay=True, dir_okay=True,
+    ),
     output: str = typer.Option(
         "dot", "--output", "-o",
         help="Output format: dot",
@@ -245,7 +313,35 @@ def graph(
 
     G = build_graph(traces, min_call_frequency=min_call_freq, trace_format=trace_format)
 
-    if async_deps:
+    # Resolve async topology — direct-mode or manifest
+    if sum([async_deps is not None, kafka is not None, asyncapi is not None]) > 1:
+        console.print("[red]Specify at most one of --async-deps, --kafka, --asyncapi[/red]")
+        raise typer.Exit(1)
+
+    if kafka or asyncapi:
+        import tempfile
+        try:
+            if kafka:
+                from chaosrank.adapters.kafka import KafkaAdapter
+                deps = KafkaAdapter().convert(kafka)
+            else:
+                from chaosrank.adapters.asyncapi import AsyncAPIAdapter
+                deps = AsyncAPIAdapter().convert(asyncapi)
+        except Exception as e:
+            console.print(f"[red]Direct-mode conversion failed: {e}[/red]")
+            raise typer.Exit(1)
+        manifest = yaml.dump({"dependencies": deps}, default_flow_style=False, sort_keys=False)
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False, prefix="chaosrank-async-"
+        ) as tmp:
+            tmp.write(manifest)
+            _tmp = Path(tmp.name)
+        try:
+            from chaosrank.parser.async_deps import parse_async_deps
+            G = parse_async_deps(_tmp, G)
+        finally:
+            _tmp.unlink(missing_ok=True)
+    elif async_deps:
         if not async_deps.exists():
             console.print(f"[red]Async deps file not found: {async_deps}[/red]")
             raise typer.Exit(1)
