@@ -34,16 +34,25 @@ async-deps.yaml ─────────────────────�
 
 ```
 chaosrank/
-├── cli.py                    # Entry point. Typer commands: rank, graph, convert.
+├── cli.py                    # Entry point. Typer commands: rank, graph, convert, incidents.
 │                             # Orchestrates the pipeline. Owns config loading.
 │
-├── adapters/                 # Ingestion layer — external format → internal format
+├── adapters/                 # Async topology ingestion — external format → async-deps.yaml
 │   ├── base.py               # AsyncDepsAdapter ABC — one method: convert(path) -> list[dict]
 │   ├── asyncapi.py           # AsyncAPI 2.x spec → async-deps.yaml entries
 │   └── kafka.py              # Kafka topic export JSON → async-deps.yaml entries
 │
+├── incident_adapters/        # Incident ingestion — alerting APIs → list[Incident]
+│   ├── base.py               # IncidentAdapter ABC — fetch(window_days) + shared helpers
+│   ├── pagerduty.py          # PagerDuty REST API v2
+│   ├── alertmanager.py       # Prometheus Alertmanager API
+│   ├── grafana_oncall.py     # Grafana OnCall API
+│   ├── opsgenie.py           # Opsgenie API
+│   └── csv_export.py         # list[Incident] → ChaosRank incidents.csv
+│
 ├── parser/
 │   ├── jaeger.py             # Jaeger JSON → {(caller, callee): weight} edge map
+│   ├── otlp.py               # OTel OTLP JSON → edge map (Collector + Tempo envelopes)
 │   ├── incidents.py          # incidents.csv → ServiceIncidents dataclass
 │   ├── async_deps.py         # async-deps.yaml → merged into nx.DiGraph
 │   └── normalize.py          # Service name normalization pipeline
@@ -88,17 +97,18 @@ The ingestion layer has two responsibilities:
 Traces are currently privileged: Jaeger JSON is parsed directly by `parser/jaeger.py`
 with no adapter abstraction. This is a known asymmetry.
 
-When OTel OTLP support is added (v0.3), it will follow the adapter pattern:
+OTel OTLP support is implemented in v0.3 via `parser/otlp.py`:
 
 ```
-Jaeger JSON  → jaeger.py (direct, existing)
-OTel OTLP    → adapters/otlp.py → graph edges
+Jaeger JSON     → jaeger.py (direct)
+OTel Collector  → otlp.py (_extract_collector)
+Tempo/Jaeger v2 → otlp.py (_extract_tempo, auto-detected)
 ```
 
-At that point the ingestion architecture becomes fully symmetric:
+The ingestion architecture is now fully symmetric for trace formats:
 
 ```
-trace format → adapter → graph edges   → graph builder
+trace format → parser → edge map       → graph builder
 async format → adapter → manifest      → async_deps.py → graph edges
 ```
 
@@ -106,9 +116,9 @@ The canonical internal representation is **typed graph edges**, not the manifest
 The manifest (`async-deps.yaml`) is the interface for manual input and for
 formats that do not yet have an adapter. It is not a permanent internal abstraction.
 
-As the adapter layer matures, adapters may eventually normalize directly to
-graph edges, bypassing the manifest entirely. The manifest will then become
-one input mode — the manual one — rather than the required intermediate format.
+Direct-mode flags (`--kafka`, `--asyncapi`) on `rank` and `graph` bypass the
+manifest entirely for CI/CD pipelines. The explicit two-step workflow remains
+the documented default for interactive use.
 
 ### 3.3 Async topology ingestion
 
@@ -180,10 +190,9 @@ chaosrank convert --from kafka --input ./kafka-topics.json --output ./async-deps
 chaosrank rank --traces ./traces.json --async-deps ./async-deps.yaml
 ```
 
-A future direct-mode flag on `rank` (e.g. `--asyncapi spec.yaml`) is planned for
-CI/CD pipelines where intermediate file inspection is not required. The architecture
-already supports this — adapters are isolated and callable directly. The explicit
-two-step workflow remains the documented default.
+Direct-mode flags `--kafka` and `--asyncapi` on `rank` and `graph` are available
+for CI/CD pipelines where intermediate file inspection is not required. The explicit
+two-step convert workflow remains the documented default for interactive use.
 
 ---
 
@@ -477,11 +486,13 @@ All computation is local and offline.
 
 ## 12. What This Is Not
 
+
+
 - Does not inject faults             → use LitmusChaos, Chaos Mesh, or Gremlin
 - Does not derive steady-state       → bring your own Prometheus thresholds
 - Does not verify experiment results → check your dashboards
 - Does not require a running cluster → offline analysis on trace exports
-- Does not support OTel OTLP v1      → v0.3 roadmap (trace adapter)
+- Does not support OTel protobuf     → JSON-encoded OTLP supported; protobuf v0.4 roadmap
 - Does not parse source code         → adapters target structured formats only;
                                        see docs/async-deps-guide.md for manual
                                        topology extraction from codebases

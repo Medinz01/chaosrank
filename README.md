@@ -5,7 +5,7 @@
 ![CI](https://github.com/Medinz01/chaosrank/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-157%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-244%20passing-brightgreen)
 ![PyPI](https://img.shields.io/pypi/v/chaosrank-cli)
 
 ChaosRank analyzes your service dependency graph and incident history to rank which service to break first — so your chaos experiments find real weaknesses instead of wasting cycles on low-risk services.
@@ -160,6 +160,27 @@ chaosrank convert --from kafka --input ./kafka-topics.json --output ./async-deps
 chaosrank rank --traces ./traces.json --async-deps ./async-deps.yaml
 ```
 
+### Fetch incidents from alerting system
+
+```bash
+# From PagerDuty (no manual CSV needed)
+chaosrank incidents --from pagerduty --token $PD_TOKEN --window 30d --output incidents.csv
+chaosrank rank --traces ./traces.json --incidents incidents.csv
+
+# From Alertmanager
+chaosrank incidents --from alertmanager --url http://alertmanager:9093 --window 30d --output incidents.csv
+
+# Dry-run to preview
+chaosrank incidents --from pagerduty --token $PD_TOKEN --window 7d --dry-run
+```
+
+### OTel OTLP traces
+
+```bash
+# OTel Collector JSON or Tempo/Jaeger v2 — auto-detected
+chaosrank rank --traces ./otlp_traces.json --format otlp
+```
+
 ### Visualize the dependency graph
 
 ```bash
@@ -270,9 +291,9 @@ ChaosRank does not claim novelty in any individual technique. The contribution i
 
 | Limitation | Impact | Status |
 |---|---|---|
-| Async propagation semantics | Blast radius overestimated for async-heavy producers | `edge_type=async` annotated — `async_weight_factor` planned for v0.3 |
+| Async propagation semantics | Blast radius overestimated for async-heavy producers | `async_weight_factor=0.5` default — configurable via `--async-weight-factor` |
 | Async deps: source code | No C#/Java/Go event class parsers | See `docs/async-deps-guide.md` for manual extraction |
-| Jaeger JSON only | Narrow trace input support | OTel OTLP trace adapter planned for v0.3 |
+| OTel protobuf | JSON-encoded OTLP only | Protobuf support planned for v0.4 |
 | Single-region topology | Misses cross-region blast radius | Future work |
 | Static alpha/beta | Optimal weights vary by system | Future: learned weights |
 | Z-score less stable below 10 services | Directional scores only | Documented |
@@ -304,7 +325,7 @@ Use `--dry-run` to verify extraction before it affects rankings. See `docs/async
 - **Does not derive steady-state** → bring your own Prometheus thresholds
 - **Does not verify results** → check your dashboards or Steadybit
 - **Does not need a running cluster** → offline analysis on trace exports
-- **Does not support OTel OTLP v1** → v0.3 roadmap (trace adapter)
+- **Does not support OTel protobuf** → JSON-encoded OTLP supported; protobuf v0.4 roadmap
 - **Does not parse source code** → see `docs/async-deps-guide.md` for manual topology extraction
 
 ---
@@ -359,6 +380,8 @@ chaosrank rank --traces traces.json --incidents incidents.csv --verbose
 | `test_ranker.py` | 18 | Risk math, cold start, combined signal, fault suggestion |
 | `test_async_deps.py` | 19 | Manifest parser: edge merging, weight assignment, normalization, conflict handling |
 | `test_adapters.py` | 36 | AsyncAPI adapter (edge/topic/binding extraction), Kafka adapter (edge extraction, malformed input) |
+| `test_parser_otlp.py` | 39 | OTel Collector JSON, Tempo/Jaeger v2, auto-detection, service name normalization |
+| `test_incident_adapters.py` | 48 | PagerDuty, Alertmanager, Grafana OnCall, Opsgenie — all HTTP mocked |
 
 The fragility preservation test is load-bearing for the benchmark: it asserts that a medium-traffic service with disproportionately high incident rate ranks above a high-traffic service with proportional incidents — the case that post-hoc normalization gets wrong.
 
@@ -374,9 +397,17 @@ chaosrank/
 │   │   ├── base.py               # AsyncDepsAdapter ABC
 │   │   ├── asyncapi.py           # AsyncAPI 2.x → async-deps.yaml
 │   │   └── kafka.py              # Kafka topic export → async-deps.yaml
+│   ├── incident_adapters/
+│   │   ├── base.py               # IncidentAdapter ABC
+│   │   ├── pagerduty.py          # PagerDuty REST API v2
+│   │   ├── alertmanager.py       # Prometheus Alertmanager API
+│   │   ├── grafana_oncall.py     # Grafana OnCall API
+│   │   ├── opsgenie.py           # Opsgenie API
+│   │   └── csv_export.py         # list[Incident] → ChaosRank CSV
 │   ├── parser/
 │   │   ├── normalize.py          # Service name normalization
 │   │   ├── jaeger.py             # Jaeger JSON trace parser
+│   │   ├── otlp.py               # OTel OTLP trace parser (Collector + Tempo)
 │   │   ├── incidents.py          # Incident CSV parser
 │   │   └── async_deps.py         # async-deps.yaml → graph edges
 │   ├── graph/
@@ -391,7 +422,7 @@ chaosrank/
 │       ├── table.py              # Rich table renderer
 │       ├── json_out.py           # JSON output with reasoning
 │       └── litmus.py             # LitmusChaos ChaosEngine manifest
-├── tests/                        # 157 tests
+├── tests/                        # 244 tests
 ├── benchmarks/
 │   ├── convert_deathstar.py      # DeathStarBench → Jaeger JSON converter
 │   ├── extract_incidents.py      # Anomaly traces → incident CSV extractor
@@ -419,6 +450,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, testing, and PR guidelines.
 - [docs/architecture.md](docs/architecture.md) — component map, data flow, ingestion layer design
 - [docs/async-deps-guide.md](docs/async-deps-guide.md) — async manifest format and manual extraction guide
 - [docs/future-work.md](docs/future-work.md) — roadmap
+- [benchmarks/sensitivity/](benchmarks/sensitivity/) — hyperparameter stability analysis
 
 ## Changelog
 

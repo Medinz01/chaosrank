@@ -7,71 +7,114 @@ ChaosRank follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.3.0] — 2026-03-15
+
+### Added
+
+**OTel OTLP trace adapter**
+- `parser/otlp.py` — parses OTel Collector JSON (`resourceSpans` envelope)
+  and Tempo/Jaeger v2 JSON (`batches` envelope). Auto-detects envelope shape
+  at parse time — no subtype flag needed.
+- `--format otlp` flag on `chaosrank rank` and `chaosrank graph`. Default
+  remains `jaeger` for backward compatibility.
+- `graph/builder.py` — `trace_format` parameter routes to the correct parser.
+- `tests/test_parser_otlp.py` — 39 tests: edge extraction, service name
+  normalization, Tempo envelope, auto-detection, malformed input.
+- `tests/fixtures/otlp_trace.json` — synthetic OTel Collector JSON fixture
+  (10 calls per edge, passes `min_call_frequency=10` in CI without config).
+- `tests/fixtures/otlp_tempo_trace.json` — synthetic Tempo/Jaeger v2 fixture.
+- CI smoke test: `chaosrank rank --format otlp` with ranked output assertion.
+
+**Alerting system adapters for incident ingestion**
+- `chaosrank/incident_adapters/` — new adapter layer parallel to async deps
+  adapters. Removes the primary adoption barrier: teams no longer need to
+  hand-craft a CSV to use ChaosRank.
+- `incident_adapters/base.py` — `IncidentAdapter` ABC with shared
+  `infer_type()` and `normalize_severity()` helpers.
+- `incident_adapters/pagerduty.py` — PagerDuty REST API v2, paginated,
+  urgency→severity mapping.
+- `incident_adapters/alertmanager.py` — Prometheus Alertmanager API, service
+  extracted from labels (`service` > `job` > `app` priority order).
+- `incident_adapters/grafana_oncall.py` — Grafana OnCall API, service from
+  alert payload labels.
+- `incident_adapters/opsgenie.py` — Opsgenie API, service from `service:<name>`
+  tag convention, P1–P5 priority→severity mapping.
+- `incident_adapters/csv_export.py` — converts `list[Incident]` to ChaosRank
+  incident CSV format.
+- `chaosrank incidents` command — fetches incidents from an alerting system
+  and exports as ChaosRank CSV. Flags: `--from`, `--token`, `--url`,
+  `--window`, `--output`, `--dry-run`.
+- `tests/test_incident_adapters.py` — 48 tests, all HTTP calls mocked via
+  `unittest.mock`. No network required in CI.
+- `tests/fixtures/pagerduty_incidents.json` and `alertmanager_alerts.json` —
+  synthetic API response fixtures.
+- CI smoke tests: help registration, invalid format exit, missing token exit,
+  dry-run via mock HTTP.
+
+**`async_weight_factor` — async edge propagation semantics**
+- `graph/blast_radius.py` — `async_weight_factor` parameter (default 0.5)
+  applied to async edge weights before blast radius scoring. Fixes known model
+  limitation: async edges were treated identically to sync edges. A Kafka
+  producer with 12 consumers no longer scores the same blast radius as a
+  synchronous gateway calling 12 services.
+- `_apply_async_weight()` helper — copies G and scales async edge weights
+  before PageRank and in-degree centrality. Returns G unchanged when no async
+  edges present or factor == 1.0 (no unnecessary copy).
+- `--async-weight-factor` flag on `chaosrank rank` (default 0.5, range (0.0, 1.0]).
+- Config file support: `graph.async_weight_factor` in `chaosrank.yaml`.
+- `chaosrank.yaml` updated with `async_weight_factor: 0.5` entry and comment.
+
+**Direct-mode ingestion flags**
+- `--kafka <file>` and `--asyncapi <file-or-dir>` flags on `chaosrank rank`
+  and `chaosrank graph`. Converts and merges async topology in one step without
+  an intermediate `async-deps.yaml` file.
+- Conflict guard: at most one of `--async-deps`, `--kafka`, `--asyncapi`.
+- `--async-deps` unchanged — explicit two-step workflow still supported and
+  remains the documented default for interactive use.
+
+**Sensitivity analysis**
+- `benchmarks/sensitivity/run_sensitivity.py` — sweeps `alpha` in [0.4, 0.8]
+  and `w_pr` in [0.3, 0.7] measuring Kendall tau vs default baseline.
+- Results on DeathStarBench social-network (31 services):
+  - alpha stable range: [0.50, 0.70] (tau ≥ 0.85) — confirms spec prediction
+  - w_pr stable range: [0.30, 0.70] (tau ≥ 0.85) — wider than predicted
+  - Signal misalignment (tau=0.10 between blast radius and fragility) documented
+    as a real finding on this dataset: structural centrality and incident
+    frequency are decorrelated in the DeathStarBench social-network topology.
+- `benchmarks/sensitivity/README.md`
+- `benchmarks/sensitivity/results/` — CSVs, PNG charts, `summary.txt`.
+
+**Tests — 244 passing (+87 since v0.2.0)**
+
+### Known limitations
+
+- `type` field in incident adapters is a heuristic: keyword match on alert
+  title/name (`latency`, `timeout`, `error`, `fail`). Falls back to `error`.
+  Alerting systems do not emit `error/latency/timeout` natively.
+- `request_volume` is always `None` from alerting adapters — these APIs do not
+  carry traffic data. Scorer handles `None` gracefully (falls back to window
+  average).
+- No new dependencies: HTTP via stdlib `urllib.request`.
+- OTel protobuf format not yet supported — JSON only.
+- Tempo/Jaeger v2 auto-detection uses a 512-byte prefix scan for the streaming
+  path; works for all well-formed files.
+
+---
+
 ## [0.2.0] — 2026-03-08
 
 ### Added
 
 **Async topology ingestion layer**
-- `--async-deps` flag on `chaosrank rank` and `chaosrank graph` — accepts an
-  `async-deps.yaml` manifest describing Kafka/SQS/async relationships missing
-  from trace spans. Edges are merged into the graph before blast radius scoring,
-  correcting the ranking inversion for async-heavy producers.
-- `chaosrank convert` command — converts external async topology formats to
-  `async-deps.yaml`. Explicit two-step workflow: convert and verify, then rank.
-  Supports `--dry-run` to preview output without writing.
-- `--from asyncapi` adapter — parses AsyncAPI 2.x single-service specs from a
-  directory (or a single multi-service spec file). Cross-references channels
-  across files to emit producer→consumer pairs. Supports channel-level and
-  operation-level bindings (kafka, amqp/rabbitmq, sqs, sns, nats, mqtt).
-- `--from kafka` adapter — parses a Kafka topic export JSON file describing
-  topic names, producers, and consumers. Schema documented in
-  `docs/async-deps-guide.md`.
-- `adapters/base.py` — `AsyncDepsAdapter` ABC defining the adapter contract.
-  All adapters implement one method: `convert(path) -> list[dict]`. Adapters
-  return raw names; normalization happens downstream in `parse_async_deps()`.
-- `parser/async_deps.py` — merges manifest entries into an existing `nx.DiGraph`.
-  Assigns `weight = median(trace_edge_weights)` to async edges. Annotates
-  `edge_type="async"`, `channel`, `topic` on all async edges. Skips malformed
-  entries, self-loops, and duplicate sync edges.
-- Async edges render as dashed lines in `chaosrank graph --output dot`.
-- JSON output includes `blast_radius_notes` field when `--async-deps` provided,
-  explaining the median weight assumption.
-- `version: "1"` field added to `async-deps.yaml` schema. `parse_async_deps()`
-  validates on load; warns if absent (backwards compatibility), raises on
-  unrecognised future versions.
-
-**Tests — 157 passing (+50)**
-- `tests/test_async_deps.py` (19) — manifest parser: edge merging, weight
-  assignment, normalization, conflict handling, malformed input
-- `tests/test_adapters.py` (36) — AsyncAPI adapter: edge extraction, topic/
-  binding extraction, service name extraction, malformed input; Kafka adapter:
-  edge extraction, malformed input
-
-**Documentation**
-- `docs/architecture.md` — new Section 3 documents the ingestion layer design:
-  adapter contract, manifest-vs-edge-list architectural decision, trace ingestion
-  asymmetry, async edge propagation limitation, user workflow
-- `docs/algorithm.md` — Section 10 updated from "Critical Caveat" to
-  "Async/Queue Dependency Support": documents v0.2 implementation, convert
-  workflow, and remaining async propagation semantics limitation
-- `docs/future-work.md` — async deps section moved to Done; new items added:
-  `async_weight_factor`, direct-mode flag, OTel OTLP trace adapter
-
-**Infrastructure**
-- `.dockerignore` — excludes `__pycache__`, `*.pyc`, `.pytest_cache`,
-  `*.egg-info` to prevent stale compiled files from baking into image layers
-
-### Known limitations
-
-- Async edge propagation semantics: async edges are treated identically to sync
-  edges in blast radius scoring. A Kafka producer with 12 consumers receives the
-  same blast radius contribution per edge as a synchronous gateway. The graph
-  annotates `edge_type="async"` on all async edges — an `async_weight_factor`
-  multiplier is planned for v0.3. No schema migration required.
-- Source code parsers (C#, Java, Go integration events) are not supported —
-  language-specific, out of scope. See `docs/async-deps-guide.md` for manual
-  extraction guide.
-- OTel OTLP trace format not yet supported — v0.3 roadmap.
+- `--async-deps` flag on `chaosrank rank` and `chaosrank graph`
+- `chaosrank convert` command with `--from asyncapi` and `--from kafka`
+- `adapters/base.py` — `AsyncDepsAdapter` ABC
+- `adapters/asyncapi.py` — AsyncAPI 2.x single/multi-service spec support
+- `adapters/kafka.py` — Kafka topic export JSON support
+- `parser/async_deps.py` — manifest parser, median edge weight, edge_type annotation
+- Async edges render as dashed lines in `chaosrank graph --output dot`
+- `version: "1"` schema field in `async-deps.yaml`
+- **Tests — 157 passing (+50)**
 
 ---
 
@@ -83,60 +126,17 @@ First public release.
 
 **Core algorithm**
 - Blast radius scoring via blended centrality: `pagerank(G) + in_degree_centrality(G)`
-- Fragility scoring via four-step pipeline: traffic-aware burst deduplication,
-  per-incident traffic normalization, exponential decay, z-score normalization
-- Risk score combination: `risk = alpha * blast_radius + beta * fragility`
-- Fault type suggestion with confidence matrix (purity × effective sample size)
-- Signal misalignment diagnostic — Kendall tau warning when blast radius and
-  fragility rankings diverge significantly
+- Fragility scoring: traffic-aware burst deduplication, per-incident traffic
+  normalization, exponential decay, z-score normalization
+- Risk score: `risk = alpha * blast_radius + beta * fragility`
+- Fault type suggestion with confidence matrix
+- Signal misalignment diagnostic (Kendall tau warning)
 
-**CLI**
-- `chaosrank rank` — rank services by risk score
-- `chaosrank graph` — export dependency graph as Graphviz DOT
-- `--output table` (default), `--output json`, `--output litmus`
-- `--config` flag for custom `chaosrank.yaml`
-- `--top-n` flag to control output length
-- Cold start handling — blast-radius-only ranking when no incident data provided
+**CLI** — `chaosrank rank`, `chaosrank graph`, `--output table/json/litmus`
 
-**Input support**
-- Jaeger JSON trace export (Jaeger HTTP API format)
-- Streaming parser via `ijson` for trace files >100MB
-- Incident history CSV with optional `request_volume` column
-- Service name normalization: version stripping, pod hash removal, user aliases
+**Input** — Jaeger JSON, incident CSV, service name normalization
 
-**Output formats**
-- Rich terminal table with color-coded confidence levels
-- JSON output with per-service `reasoning` field
-- LitmusChaos ChaosEngine YAML manifest, ready for `kubectl apply`
-- Graphviz DOT export with blast-radius-based node coloring
-
-**Benchmark**
-- `benchmarks/convert_deathstar.py` — converts UIUC/FIRM DeathStarBench
-  trace dataset to ChaosRank Jaeger JSON format
-- `benchmarks/extract_incidents.py` — extracts incidents from anomaly
-  injection trace files by comparing against no-interference baseline
-- `benchmarks/run_comparison.py` — 20-trial simulation vs random selection
-- `benchmarks/plot_results.py` — cumulative discovery curve with 95% CI bands
-- Benchmark results: **9.8x faster to first weakness, 7.8x faster to all
-  weaknesses** on DeathStarBench social-network (31 services)
+**Benchmark** — 9.8x faster to first weakness, 7.8x faster to all weaknesses
+on DeathStarBench social-network (31 services)
 
 **Tests — 107 passing**
-- `test_fragility.py` (21) — burst dedup, per-incident normalization,
-  fragility preservation, z-score, decay
-- `test_blast_radius.py` (15) — callee model, chain ordering, blend weights
-- `test_ranker.py` (18) — risk math, cold start, combined signal, fault suggestion
-- `test_parser.py` (53) — normalization round-trip, incident parsing, Jaeger parsing
-
-**Documentation**
-- `docs/algorithm.md` — full mathematical derivation including PageRank
-  direction correction and blast radius semantic model
-- `docs/architecture.md` — component map, data flow, graph convention
-- `docs/future-work.md` — async deps, OTel OTLP, learned weights roadmap
-
-### Known limitations
-
-- Jaeger JSON only — OTel OTLP planned for v0.2
-- Async dependencies (Kafka, SQS, etc.) not captured in trace spans —
-  potential ranking inversion for event-driven architectures (see README)
-- Single-region topology only
-- Z-score normalization less stable below 10 services

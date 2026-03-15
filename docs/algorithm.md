@@ -488,7 +488,7 @@ See architecture.md §3 for the full ingestion layer design.
 When --async-deps is provided, the startup warning is suppressed and replaced
 with a confirmation log showing the count of async edges merged.
 
-### 10.3 Remaining Limitation — Async Edge Propagation Semantics
+### 10.3 Async Edge Propagation Semantics — Addressed in v0.3
 
 Introducing async edges into the graph corrects the ranking inversion for
 async-heavy producers. However, the current model treats async edges identically
@@ -526,18 +526,15 @@ The edge annotation is already in place.
 
   Limitation                    Impact                        Status
   ──────────────────────────────────────────────────────────────────────
-  Async propagation semantics   Blast radius overestimated    See Section 10.3
-                                for async-heavy producers     async_weight_factor v0.3
+  Async propagation semantics   Overestimates async producers async_weight_factor=0.5 default (v0.3)
   Async deps: source code       No C#/Java/Go parsers         docs/async-deps-guide.md
   Single-region topology        Misses cross-region radius    Future work
-  Jaeger format only            Narrow trace input support    v0.3: OTel OTLP adapter
+  OTel protobuf                 JSON only                     v0.4 roadmap
   Static alpha/beta             Optimal weights vary          Future: learned
   Blend ratio (w_pr/w_od)       Topology-dependent tuning     Configurable
   Betweenness centrality        Transitive paths missing      Future: opt flag
   Point-in-time request vol     Requires enriched CSV         Falls back to avg
-  Z-score below 10 services     Less statistically stable     Interpret directionally
-  Manifest as internal format   May be bypassed by adapters   Tracked in architecture.md
-
+  Incident type inference       Heuristic keyword match       No native support in alerting APIs
 ---
 
 ## 12. Relationship to Prior Work
