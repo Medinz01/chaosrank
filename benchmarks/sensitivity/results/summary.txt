@@ -1,0 +1,35 @@
+ChaosRank Sensitivity Analysis
+============================================================
+
+ALPHA SWEEP (w_pr=0.5 fixed, baseline alpha=0.6)
+----------------------------------------
+  alpha=0.40  beta=0.60  tau=0.7892 UNSTABLE
+  alpha=0.45  beta=0.55  tau=0.8452 UNSTABLE
+  alpha=0.50  beta=0.50  tau=0.8925
+  alpha=0.55  beta=0.45  tau=0.9441
+  alpha=0.60  beta=0.40  tau=1.0000 ← baseline
+  alpha=0.65  beta=0.35  tau=0.9312
+  alpha=0.70  beta=0.30  tau=0.8753
+  alpha=0.75  beta=0.25  tau=0.8452 UNSTABLE
+  alpha=0.80  beta=0.20  tau=0.7677 UNSTABLE
+
+  Stable range (tau >= 0.85): alpha in [0.50, 0.70]
+
+W_PR SWEEP (alpha=0.6 fixed, baseline w_pr=0.5)
+----------------------------------------
+  w_pr=0.30  w_od=0.70  tau=0.8667
+  w_pr=0.35  w_od=0.65  tau=0.8968
+  w_pr=0.40  w_od=0.60  tau=0.9312
+  w_pr=0.45  w_od=0.55  tau=0.9871
+  w_pr=0.50  w_od=0.50  tau=1.0000 ← baseline
+  w_pr=0.55  w_od=0.45  tau=0.9785
+  w_pr=0.60  w_od=0.40  tau=0.9441
+  w_pr=0.65  w_od=0.35  tau=0.9183
+  w_pr=0.70  w_od=0.30  tau=0.9011
+
+  Stable range (tau >= 0.85): w_pr in [0.30, 0.70]
+
+CONCLUSION
+----------------------------------------
+  alpha in [0.5, 0.7]: STABLE
+  w_pr  in [0.4, 0.6]: STABLE

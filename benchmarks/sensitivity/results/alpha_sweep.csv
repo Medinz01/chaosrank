@@ -1,0 +1,10 @@
+alpha,beta,kendall_tau,is_baseline,stable
+0.4,0.6,0.7892,False,False
+0.45,0.55,0.8452,False,False
+0.5,0.5,0.8925,False,True
+0.55,0.45,0.9441,False,True
+0.6,0.4,1.0,True,True
+0.65,0.35,0.9312,False,True
+0.7,0.3,0.8753,False,True
+0.75,0.25,0.8452,False,False
+0.8,0.2,0.7677,False,False

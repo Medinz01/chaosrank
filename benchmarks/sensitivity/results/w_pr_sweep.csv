@@ -1,0 +1,10 @@
+w_pr,w_od,kendall_tau,is_baseline,stable
+0.3,0.7,0.8667,False,True
+0.35,0.65,0.8968,False,True
+0.4,0.6,0.9312,False,True
+0.45,0.55,0.9871,False,True
+0.5,0.5,1.0,True,True
+0.55,0.45,0.9785,False,True
+0.6,0.4,0.9441,False,True
+0.65,0.35,0.9183,False,True
+0.7,0.3,0.9011,False,True
