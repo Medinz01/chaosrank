@@ -66,6 +66,15 @@ def rank(
             "Async edges are assigned weight equal to median trace edge weight."
         ),
     ),
+    async_weight_factor: float = typer.Option(
+        0.5, "--async-weight-factor",
+        help=(
+            "Multiplier applied to async edge weights before blast radius scoring. "
+            "Default 0.5 reflects lower failure propagation probability for async "
+            "channels vs synchronous calls. Set to 1.0 to treat async edges "
+            "identically to sync edges. Only has effect when --async-deps is provided."
+        ),
+    ),
     window: str = typer.Option(
         "7d", "--window", "-w",
         help="Observation window (e.g. 7d, 30d). Currently informational.",
@@ -95,12 +104,19 @@ def rank(
         help="Enable debug logging.",
     ),
 ) -> None:
+    """Rank services by chaos experiment priority."""
     _setup_logging(verbose)
 
     if trace_format not in _TRACE_FORMATS:
         console.print(
             f"[red]Unknown trace format: {trace_format!r}. "
             f"Supported: {', '.join(_TRACE_FORMATS)}[/red]"
+        )
+        raise typer.Exit(1)
+
+    if not 0.0 < async_weight_factor <= 1.0:
+        console.print(
+            f"[red]--async-weight-factor must be in (0.0, 1.0], got {async_weight_factor}[/red]"
         )
         raise typer.Exit(1)
 
@@ -118,6 +134,9 @@ def rank(
     decay_lambda  = frag_cfg.get("decay_lambda", 0.10)
     base_window   = frag_cfg.get("burst_window_minutes", 5.0)
     _top_n        = top_n or cfg.get("output", {}).get("top_n")
+
+    # Config file can also set async_weight_factor; CLI flag takes precedence
+    _async_weight_factor = cfg.get("graph", {}).get("async_weight_factor", async_weight_factor)
 
     aliases = cfg.get("aliases", {})
     if aliases:
@@ -146,7 +165,11 @@ def rank(
             raise typer.Exit(1)
 
     typer.echo("Computing blast radius...", err=True)
-    blast = compute_blast_radius(G, async_deps_provided=async_deps is not None)
+    blast = compute_blast_radius(
+        G,
+        async_deps_provided=async_deps is not None,
+        async_weight_factor=_async_weight_factor,
+    )
 
     service_incidents = {}
     if incidents:
@@ -207,6 +230,7 @@ def graph(
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
+    """Visualize the service dependency graph."""
     _setup_logging(verbose)
 
     if trace_format not in _TRACE_FORMATS:
@@ -269,6 +293,7 @@ def convert(
         help="Enable debug logging.",
     ),
 ) -> None:
+    """Convert an async topology source file to async-deps.yaml format."""
     _setup_logging(verbose)
 
     if from_format not in _SUPPORTED_FORMATS:
@@ -320,6 +345,7 @@ def incidents(
     dry_run:     bool           = typer.Option(False, "--dry-run",      help="Print row count + sample without writing"),
     verbose:     bool           = typer.Option(False, "--verbose", "-v"),
 ) -> None:
+    """Fetch incidents from an alerting system and export as ChaosRank CSV."""
     _setup_logging(verbose)
 
     if from_format not in _INCIDENT_FORMATS:
@@ -329,7 +355,6 @@ def incidents(
         )
         raise typer.Exit(1)
 
-    # Parse window (e.g. "30d" → 30)
     try:
         if not window.endswith("d"):
             raise ValueError
@@ -340,7 +365,6 @@ def incidents(
         console.print("[red]--window must be a positive integer followed by 'd', e.g. 7d or 30d[/red]")
         raise typer.Exit(1)
 
-    # Instantiate adapter
     try:
         if from_format == "pagerduty":
             if not token:
