@@ -1,14 +1,14 @@
 # ChaosRank
 
-**Stop running random chaos experiments. Run the right one next.**
+**Chaos engineering requires a hypothesis. ChaosRank tells you where to point it.**
 
 ![CI](https://github.com/Medinz01/chaosrank/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-Apache_2.0-green)
 ![Tests](https://img.shields.io/badge/tests-244%20passing-brightgreen)
 ![PyPI](https://img.shields.io/pypi/v/chaosrank-cli)
 
-ChaosRank analyzes your service dependency graph and incident history to rank which service to break first — so your chaos experiments find real weaknesses instead of wasting cycles on low-risk services.
+ChaosRank analyzes your service dependency graph and incident history to rank which service to target next and what fault to inject — giving you a data-driven starting point before you run a single experiment.
 
 ```
 Rank  Service                    Risk   Blast  Fragility  Suggested Fault     Confidence
@@ -458,4 +458,4 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for full text.
+Apache 2.0 — see [LICENSE](LICENSE) for full text.
