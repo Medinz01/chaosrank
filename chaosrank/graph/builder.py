@@ -12,12 +12,28 @@ def build_graph(
     traces_path: Path,
     min_call_frequency: int = 10,
     trace_format: str = "jaeger",
+    otlp_format: str = "json",
 ) -> nx.DiGraph:
+    """Build a NetworkX DiGraph from a trace export file.
+
+    Args:
+        traces_path:        Path to trace export file.
+        min_call_frequency: Drop edges with fewer calls. Default 10.
+        trace_format:       "jaeger" | "otlp". Default "jaeger".
+        otlp_format:        "json" | "protobuf". Only used when trace_format="otlp".
+                            Default "json" (existing behaviour, no change).
+    """
     if trace_format == "jaeger":
         edges = parse_traces(traces_path, min_call_frequency=min_call_frequency)
+
     elif trace_format == "otlp":
-        from chaosrank.parser.otlp import parse_otlp
-        edges = parse_otlp(traces_path, min_call_frequency=min_call_frequency)
+        if otlp_format == "protobuf":
+            from chaosrank.parser.otlp_proto import parse_otlp_proto
+            edges = parse_otlp_proto(traces_path, min_call_frequency=min_call_frequency)
+        else:
+            from chaosrank.parser.otlp import parse_otlp
+            edges = parse_otlp(traces_path, min_call_frequency=min_call_frequency)
+
     else:
         raise ValueError(
             f"Unknown trace format: {trace_format!r}. Supported: jaeger, otlp"

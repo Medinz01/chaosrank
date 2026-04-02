@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chaosrank-cli"
-version = "0.3.0"
+version = "0.3.1"
 description = "Risk-driven chaos experiment scheduler — rank which microservice to chaos-test next"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -31,14 +31,18 @@ classifiers = [
     "Topic :: Software Development :: Testing",
 ]
 dependencies = [
+    # Graph construction (local — in public repo)
     "networkx>=3.2",
-    "numpy>=1.26",
-    "scipy>=1.11",
+    # CLI + output
     "typer>=0.9",
     "rich>=13.0",
+    # Config + parsers
     "pyyaml>=6.0",
     "ijson>=3.2",
+    # Engine HTTP client
+    "requests>=2.31",
 ]
+# NOTE: numpy/scipy are dependencies of chaosrank-engine (private), not the public SDK.
 
 [project.urls]
 Homepage = "https://github.com/Medinz01/chaosrank"
@@ -55,6 +59,7 @@ dev = [
     "pytest-cov>=4.1",
     "ruff>=0.1",
 ]
+protobuf = ["opentelemetry-proto>=1.0"]
 benchmark = [
     "matplotlib>=3.7",
 ]

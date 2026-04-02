@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -7,13 +8,12 @@ import typer
 import yaml
 from rich.console import Console
 
-from chaosrank.graph.blast_radius import compute_blast_radius
+from chaosrank.engine.client import EngineClient, EngineError
 from chaosrank.graph.builder import build_graph
 from chaosrank.output.table import render_table
 from chaosrank.parser.async_deps import parse_async_deps
 from chaosrank.parser.incidents import parse_incidents
 from chaosrank.parser.normalize import load_aliases
-from chaosrank.scorer.ranker import rank_services
 
 app = typer.Typer(
     name="chaosrank",
@@ -23,9 +23,10 @@ app = typer.Typer(
 
 console = Console()
 
-_SUPPORTED_FORMATS = ("asyncapi", "kafka")
-_TRACE_FORMATS = ("jaeger", "otlp")
-_INCIDENT_FORMATS = ("pagerduty", "alertmanager", "grafana-oncall", "opsgenie")
+_SUPPORTED_FORMATS  = ("asyncapi", "kafka")
+_TRACE_FORMATS      = ("jaeger", "otlp")
+_OTLP_FORMATS       = ("json", "protobuf")
+_INCIDENT_FORMATS   = ("pagerduty", "alertmanager", "grafana-oncall", "opsgenie", "datadog")
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -43,6 +44,19 @@ def _load_config(config_path: Path) -> dict:
     return {}
 
 
+def _engine_client(cfg: dict) -> EngineClient:
+    """Build an EngineClient from chaosrank.yaml [engine] block + env vars."""
+    eng = cfg.get("engine", {})
+    url = eng.get("url", os.environ.get("CHAOSRANK_ENGINE_URL", "http://localhost:8080"))
+    api_key = eng.get("api_key", os.environ.get("CHAOSRANK_API_KEY", ""))
+    # Resolve ${ENV_VAR} substitutions in the yaml value
+    if api_key.startswith("${") and api_key.endswith("}"):
+        var = api_key[2:-1]
+        api_key = os.environ.get(var, "")
+    timeout = int(eng.get("timeout_seconds", 30))
+    return EngineClient(url=url, api_key=api_key, timeout=timeout)
+
+
 @app.command()
 def rank(
     traces: Path = typer.Option(
@@ -53,6 +67,14 @@ def rank(
     trace_format: str = typer.Option(
         "jaeger", "--format", "-f",
         help="Trace format: jaeger (default) | otlp",
+    ),
+    otlp_format: str = typer.Option(
+        "json", "--otlp-format",
+        help=(
+            "OTLP encoding: json (default) | protobuf. "
+            "Only used when --format otlp. "
+            "Requires pip install chaosrank-cli[protobuf] for protobuf."
+        ),
     ),
     incidents: Optional[Path] = typer.Option(
         None, "--incidents", "-i",
@@ -94,13 +116,33 @@ def rank(
             "identically to sync edges. Only has effect when --async-deps is provided."
         ),
     ),
+    betweenness: bool = typer.Option(
+        False, "--betweenness",
+        help=(
+            "Enable betweenness centrality as a third blast radius component. "
+            "Surfaces bridge nodes that sit on critical cross-cluster paths "
+            "even when they have low in-degree. "
+            "O(V*E) — adds ~1s on graphs with 50+ services. "
+            "Use --w-bc to set its weight (default auto-adjusts to 0.20)."
+        ),
+    ),
+    w_bc: Optional[float] = typer.Option(
+        None, "--w-bc",
+        help=(
+            "Betweenness centrality weight in the blast radius blend. "
+            "Only used when --betweenness is set. "
+            "w_pr + w_od + w_bc must equal 1.0. "
+            "If omitted, auto-adjusts: w_pr and w_od are scaled proportionally "
+            "to make room for w_bc=0.20. A warning shows the adjusted values."
+        ),
+    ),
     window: str = typer.Option(
         "7d", "--window", "-w",
         help="Observation window (e.g. 7d, 30d). Currently informational.",
     ),
     output: str = typer.Option(
         "table", "--output", "-o",
-        help="Output format: table | json | litmus",
+        help="Output format: table | json | litmus | html",
     ),
     top_n: Optional[int] = typer.Option(
         None, "--top-n",
@@ -118,6 +160,10 @@ def rank(
         None, "--beta",
         help="Fragility weight (overrides config).",
     ),
+    engine_url: Optional[str] = typer.Option(
+        None, "--engine-url",
+        help="Engine base URL (overrides chaosrank.yaml engine.url).",
+    ),
     verbose: bool = typer.Option(
         False, "--verbose", "-v",
         help="Enable debug logging.",
@@ -132,6 +178,26 @@ def rank(
             f"Supported: {', '.join(_TRACE_FORMATS)}[/red]"
         )
         raise typer.Exit(1)
+
+    if otlp_format not in _OTLP_FORMATS:
+        console.print(
+            f"[red]Unknown --otlp-format: {otlp_format!r}. "
+            f"Supported: {', '.join(_OTLP_FORMATS)}[/red]"
+        )
+        raise typer.Exit(1)
+
+    if otlp_format != "json" and trace_format != "otlp":
+        console.print(
+            f"[yellow]Warning: --otlp-format {otlp_format!r} has no effect "
+            f"when --format is {trace_format!r}. "
+            f"Add --format otlp to use this option.[/yellow]"
+        )
+
+    if w_bc is not None and not betweenness:
+        console.print(
+            "[yellow]Warning: --w-bc has no effect without --betweenness. "
+            "Add --betweenness to enable betweenness centrality.[/yellow]"
+        )
 
     if not 0.0 < async_weight_factor <= 1.0:
         console.print(
@@ -154,22 +220,31 @@ def rank(
         console.print(f"[red]Error: alpha + beta must equal 1.0 (got {_alpha + _beta:.2f})[/red]")
         raise typer.Exit(1)
 
-    min_call_freq = cfg.get("graph", {}).get("min_call_frequency", 10)
-    frag_cfg      = cfg.get("fragility", {})
-    decay_lambda  = frag_cfg.get("decay_lambda", 0.10)
-    base_window   = frag_cfg.get("burst_window_minutes", 5.0)
-    _top_n        = top_n or cfg.get("output", {}).get("top_n")
-
-    # Config file can also set async_weight_factor; CLI flag takes precedence
+    min_call_freq        = cfg.get("graph", {}).get("min_call_frequency", 10)
+    frag_cfg             = cfg.get("fragility", {})
+    decay_lambda         = frag_cfg.get("decay_lambda", 0.10)
+    base_window          = frag_cfg.get("burst_window_minutes", 5.0)
+    _top_n               = top_n or cfg.get("output", {}).get("top_n")
     _async_weight_factor = cfg.get("graph", {}).get("async_weight_factor", async_weight_factor)
 
     aliases = cfg.get("aliases", {})
     if aliases:
         load_aliases(aliases)
 
-    typer.echo(f"Parsing traces ({trace_format})...", err=True)
+    # Format mismatch guard — warn if file content doesn't match declared format
+    if trace_format == "otlp" and otlp_format == "json":
+        from chaosrank.parser.otlp_json_guard import warn_if_binary
+        warn_if_binary(traces)
+    # protobuf guard runs internally inside parse_otlp_proto — no call needed here
+
+    typer.echo(f"Parsing traces ({trace_format}/{otlp_format})...", err=True)
     try:
-        G = build_graph(traces, min_call_frequency=min_call_freq, trace_format=trace_format)
+        G = build_graph(
+            traces,
+            min_call_frequency=min_call_freq,
+            trace_format=trace_format,
+            otlp_format=otlp_format,
+        )
     except Exception as e:
         console.print(f"[red]Failed to parse traces: {e}[/red]")
         raise typer.Exit(1)
@@ -222,13 +297,6 @@ def rank(
             console.print(f"[red]Failed to parse async deps: {e}[/red]")
             raise typer.Exit(1)
 
-    typer.echo("Computing blast radius...", err=True)
-    blast = compute_blast_radius(
-        G,
-        async_deps_provided=_async_provided,
-        async_weight_factor=_async_weight_factor,
-    )
-
     service_incidents = {}
     if incidents:
         if not incidents.exists():
@@ -241,24 +309,54 @@ def rank(
             console.print(f"[red]Failed to parse incidents: {e}[/red]")
             raise typer.Exit(1)
 
-    typer.echo("Ranking services...", err=True)
-    ranked = rank_services(
-        blast_radius=blast,
-        service_incidents=service_incidents,
-        alpha=_alpha,
-        beta=_beta,
-        decay_lambda=decay_lambda,
-        base_window=base_window,
-    )
+    # Build engine client — override URL if --engine-url flag was passed
+    if engine_url:
+        cfg.setdefault("engine", {})["url"] = engine_url
+    client = _engine_client(cfg)
+
+    typer.echo("Connecting to engine...", err=True)
+    if not client.health():
+        console.print(
+            f"[red]Cannot reach ChaosRank engine. "
+            f"Start it with: docker run -p 8080:8080 chaosrank-engine[/red]"
+        )
+        raise typer.Exit(1)
+
+    typer.echo("Ranking services via engine...", err=True)
+    engine_config = {
+        "alpha":               _alpha,
+        "beta":                _beta,
+        "decay_lambda":        decay_lambda,
+        "base_window":         base_window,
+        "async_weight_factor": _async_weight_factor,
+        "async_deps_provided": _async_provided,
+        "use_betweenness":     betweenness,
+    }
+    if w_bc is not None:
+        engine_config["w_bc"] = w_bc
+    if _top_n:
+        engine_config["top_n"] = _top_n
+
+    try:
+        ranked = client.rank(G, service_incidents, config=engine_config)
+    except EngineError as e:
+        console.print(f"[red]Engine error: {e}[/red]")
+        raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Unexpected error from engine: {e}[/red]")
+        raise typer.Exit(1)
 
     if output == "json":
         from chaosrank.output.json_out import render_json
-        render_json(ranked, async_deps_provided=async_deps is not None)
+        render_json(ranked, async_deps_provided=_async_provided)
     elif output == "table":
         render_table(ranked, top_n=_top_n)
     elif output == "litmus":
         from chaosrank.output.litmus import render_litmus
         print(render_litmus(ranked, top_n=_top_n or 1))
+    elif output == "html":
+        from chaosrank.output.html_out import render_html
+        print(render_html(ranked, G=G, top_n=_top_n, alpha=_alpha, beta=_beta))
     else:
         console.print(f"[red]Unknown output format: {output}[/red]")
         raise typer.Exit(1)
@@ -274,6 +372,10 @@ def graph(
     trace_format: str = typer.Option(
         "jaeger", "--format", "-f",
         help="Trace format: jaeger (default) | otlp",
+    ),
+    otlp_format: str = typer.Option(
+        "json", "--otlp-format",
+        help="OTLP encoding: json (default) | protobuf. Only used when --format otlp.",
     ),
     async_deps: Optional[Path] = typer.Option(
         None, "--async-deps", "-a",
@@ -308,10 +410,26 @@ def graph(
         )
         raise typer.Exit(1)
 
+    if otlp_format not in _OTLP_FORMATS:
+        console.print(
+            f"[red]Unknown --otlp-format: {otlp_format!r}. "
+            f"Supported: {', '.join(_OTLP_FORMATS)}[/red]"
+        )
+        raise typer.Exit(1)
+
+    if trace_format == "otlp" and otlp_format == "json":
+        from chaosrank.parser.otlp_json_guard import warn_if_binary
+        warn_if_binary(traces)
+
     cfg = _load_config(config)
     min_call_freq = cfg.get("graph", {}).get("min_call_frequency", 10)
 
-    G = build_graph(traces, min_call_frequency=min_call_freq, trace_format=trace_format)
+    G = build_graph(
+        traces,
+        min_call_frequency=min_call_freq,
+        trace_format=trace_format,
+        otlp_format=otlp_format,
+    )
 
     # Resolve async topology — direct-mode or manifest
     if sum([async_deps is not None, kafka is not None, asyncapi is not None]) > 1:
@@ -433,11 +551,13 @@ def convert(
 
 @app.command()
 def incidents(
-    from_format: str = typer.Option(..., "--from", help=f"Source: {', '.join(_INCIDENT_FORMATS)}"),
+    from_format: str  = typer.Option(...,    "--from",    help=f"Source: {', '.join(_INCIDENT_FORMATS)}"),
     token:       Optional[str]  = typer.Option(None, "--token",   help="API key / token"),
+    app_key:     Optional[str]  = typer.Option(None, "--app-key", help="Application key (Datadog only: DD-APPLICATION-KEY)"),
     url:         Optional[str]  = typer.Option(None, "--url",     help="Base URL (Alertmanager, Grafana OnCall)"),
+    site:        str            = typer.Option("datadoghq.com", "--site", help="Datadog site hostname (default: datadoghq.com, EU: datadoghq.eu)"),
     window:      str            = typer.Option("30d", "--window", "-w", help="Lookback window, e.g. 7d, 30d"),
-    output:      Optional[Path] = typer.Option(None, "--output",  "-o", help="Output CSV path (omit to print to stdout)"),
+    output:      Optional[Path] = typer.Option(None,  "--output", "-o", help="Output CSV path (omit to print to stdout)"),
     dry_run:     bool           = typer.Option(False, "--dry-run",      help="Print row count + sample without writing"),
     verbose:     bool           = typer.Option(False, "--verbose", "-v"),
 ) -> None:
@@ -452,9 +572,7 @@ def incidents(
         raise typer.Exit(1)
 
     try:
-        if not window.endswith("d"):
-            raise ValueError
-        window_days = int(window[:-1])
+        window_days = int(window.removesuffix("d"))
         if window_days <= 0:
             raise ValueError
     except ValueError:
@@ -490,13 +608,23 @@ def incidents(
             from chaosrank.incident_adapters.opsgenie import OpsgenieAdapter
             adapter = OpsgenieAdapter(api_key=token)
 
+        elif from_format == "datadog":
+            if not token:
+                console.print("[red]--token (DD-API-KEY) is required for Datadog[/red]")
+                raise typer.Exit(1)
+            if not app_key:
+                console.print("[red]--app-key (DD-APPLICATION-KEY) is required for Datadog[/red]")
+                raise typer.Exit(1)
+            from chaosrank.incident_adapters.datadog import DatadogIncidentAdapter
+            adapter = DatadogIncidentAdapter(api_key=token, app_key=app_key, site=site)
+
     except typer.Exit:
         raise
     except Exception as e:
         console.print(f"[red]Failed to initialise adapter: {e}[/red]")
         raise typer.Exit(1)
 
-    console.print(f"[dim]Fetching incidents from {from_format} (window: {window})…[/dim]", err=True)
+    typer.echo(f"[dim]Fetching incidents from {from_format} (window: {window})…[/dim]", err=True)
 
     try:
         fetched = adapter.fetch(window_days=window_days)
@@ -505,7 +633,7 @@ def incidents(
         raise typer.Exit(1)
 
     if not fetched:
-        console.print("[yellow]No incidents returned for the given window. Output will be empty.[/yellow]", err=True)
+        typer.echo("[yellow]No incidents returned for the given window. Output will be empty.[/yellow]", err=True)
 
     if dry_run:
         console.print(f"[dim]{len(fetched)} incidents fetched.[/dim]")
