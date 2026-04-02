@@ -196,150 +196,26 @@ Expected: Kendall tau > 0.85 across w_pr in [0.4, 0.6].
 ## 5. Fragility Score
 
 ### 5.1 Design Goal
+Fragility answers: "Is this service genuinely unstable relative to its load?" The goal is to surface services that are disproportionately failing, regardless of their total traffic volume.
 
-Fragility answers: "Is this service genuinely unstable relative to its load?"
+### 5.2 The Fragility Pipeline (Conceptual)
 
-Three failure modes to avoid:
-  1. Burst bias        — one failure cascade firing 20 alerts scores as 20 incidents
-  2. Traffic bias      — high-traffic services accumulate more incidents regardless
-  3. Over-penalization — a genuinely fragile high-traffic service washes toward the mean
+ChaosRank uses a multi-step pipeline to transform raw incident records into a normalized score. This process happens within the **ChaosRank Engine**.
 
-The pipeline below addresses all three. Order matters.
+#### Step 1: Traffic-Aware Deduplication
+Alert storms often follow a single root cause. ChaosRank collapses logically related incidents within a time window that scales with the service's traffic. This prevents a single failure cascade from being counted as dozens of independent incidents.
 
-### 5.2 Step 1 — Burst Deduplication (Traffic-Aware)
+#### Step 2: Contextual Normalization
+An incident in a low-traffic service is statistically different from an incident in a high-traffic service. ChaosRank evaluates every incident within the context of the service's request volume at that precise moment. This ensures a "fair" comparison across the entire microservice graph.
 
-Naive dedup: collapse incidents of the same type on the same service within a fixed
-5-minute window. Problem: for a high-traffic service, 20 alerts in 5 minutes may
-represent a genuine multi-faceted failure cascade. A fixed window collapses real signal.
+#### Step 3: Recency Decay
+Operational reality changes fast. Recent incidents are more predictive of future failure than those from six months ago. ChaosRank applies an exponential decay to historical data, effectively giving the engine a "memory" window that prioritizes recent stability (or lack thereof).
 
-Traffic-aware burst window:
+#### Step 4: Signal Normalization
+Finally, raw fragility scores are normalized across the fleet using robust statistical methods (Z-Scaling). This ensures that extreme outliers do not "wash out" the rest of the results, and that the fragility score is on the same [0, 1] scale as the Blast Radius for final risk combination.
 
-  burst_window(v, t) = base_window * log(1 + request_volume_at(v, t) / baseline_volume)
-
-Where:
-  request_volume_at(v, t) = request volume of service v at time t of the incident
-                             (point-in-time, NOT window average)
-  baseline_volume          = median of each service's mean request volume over the
-                             observation window — one scalar for typical load
-
-High-traffic services get a wider dedup window — but only when alert rate scales
-with traffic at time t. If alert rate spikes faster than traffic at that moment,
-the window does not expand. That divergence is real signal.
-
-base_window defaults to 5 minutes. Configurable.
-
-### 5.3 Step 2 — Per-Incident Traffic Normalization
-
-This is the critical correction to naive post-hoc normalization.
-
-THE PROBLEM WITH NORMALIZING AFTER AGGREGATION:
-
-Consider two services over 7 days:
-
-  Service A (payment):  10,000 req/s,  5 high-severity incidents
-  Service B (notifier):    100 req/s,  2 high-severity incidents
-
-Naive — apply decay, then divide by traffic (severity_weight=0.602 for high):
-
-  raw_fragility(A) = 5 * 0.602 = 3.010
-  raw_fragility(B) = 2 * 0.602 = 1.204
-
-  fragility(A) = 3.010 / log(1 + 10000) = 3.010 / 9.21 = 0.327
-  fragility(B) = 1.204 / log(1 +   100) = 1.204 / 4.61 = 0.261
-
-Service A has 2.5x more severe incidents but scores only 25% higher.
-At extreme differentials (100,000 req/s vs 100 req/s), a service with
-10x more incidents can rank below a quieter one. Broken.
-
-THE FIX — NORMALIZE PER INCIDENT, BEFORE AGGREGATION:
-
-  weighted_incident(i) = severity_weight(i) / log(1 + request_volume_at(i))
-
-request_volume_at(i) = request volume of service v at time of incident i.
-
-Same example with per-incident normalization:
-
-  weighted(A, each) = 0.602 / log(1 + 10000) = 0.602 / 9.21 = 0.065
-  weighted(B, each) = 0.602 / log(1 +   100) = 0.602 / 4.61 = 0.131
-
-  raw_fragility(A) = 5 * 0.065 = 0.325
-  raw_fragility(B) = 2 * 0.131 = 0.262
-
-Service A scores higher (0.325 vs 0.262). The 2.5x incident differential is
-preserved as a proportional, interpretable score differential.
-
-Fallback chain:
-  1. request_volume_at(i) unavailable -> use window average (warn)
-  2. window average unavailable       -> skip normalization (warn)
-
-### 5.4 Step 3 — Exponential Decay
-
-Apply recency weighting after per-incident normalization:
-
-  fragility(v) = sum( weighted_incident(i) * exp(-lambda * age_days(i)) )
-
-LAMBDA'S SINGLE RESPONSIBILITY:
-
-With per-incident normalization handling traffic bias, lambda has exactly one job:
-recency weighting. It no longer compensates for traffic imbalance. This decoupling
-is intentional — one knob, one behavior.
-
-Valid lambda range:
-
-  lambda = 0.05  ->  ~60-day effective memory  (stable, infrequent-deploy systems)
-  lambda = 0.10  ->  ~30-day effective memory  (default)
-  lambda = 0.20  ->  ~15-day effective memory  (fast-moving, high-deploy-frequency)
-
-Effective memory = -log(0.05) / lambda (age at which incident contributes <5%).
-
-### 5.5 Step 4 — Robust Normalization (Z-Score, Clipped)
-
-MinMax normalization is rejected. With 11 services where one has 30 incidents
-and the rest have 0-2, MinMax compresses all others to ~0.02-0.08.
-
-Z-score with clipping:
-
-  z(v)                    = (fragility_raw(v) - mean_all) / stddev_all
-  fragility_normalized(v) = (clip(z(v), -3, 3) + 3) / 6
-
-Properties:
-  Outlier services score high without collapsing all others toward zero
-  Below-mean services receive meaningful differentiation from each other
-  Clip at +-3 sigma prevents extreme outliers from dominating the scale
-  Rescale to [0,1] for combination with blast_radius on the same scale
-
-Edge case: stddev = 0 (all services identical fragility) -> all set to 0.5,
-warning emitted: "Fragility scores are uniform. Incident data may be insufficient."
-
-Note: z-score estimates are less statistically stable below 10 services.
-In small graphs, fragility scores should be interpreted directionally.
-
-### 5.6 Complete Pipeline
-
-  For each service v:
-
-    1. logical_incidents(v) = deduplicate(
-         incidents(v),
-         window = base_window * log(1 + request_volume_at(v, t) / baseline_volume)
-       )
-
-    2. For each incident i:
-         w(i) = severity_weight(i) / log(1 + request_volume_at(i))
-
-    3. fragility_raw(v) = sum( w(i) * exp(-lambda * age_days(i)) )
-
-    4. fragility(v) = zscore_clip_rescale( fragility_raw(v) )  # clip +-3sigma, rescale [0,1]
-
-### 5.7 High-Traffic Service Fragility Preservation
-
-THE CONCERN:
-log normalization might over-penalize high-traffic services with genuinely
-severe incident rates, washing their scores toward the mean.
-
-WHY PER-INCIDENT NORMALIZATION PRESERVES THE SIGNAL:
-Normalizing each incident at time of occurrence evaluates every event in its own
-context. The aggregated score reflects "how abnormal were incidents relative to load"
-— not "how many total incidents occurred."
+### 5.3 High-Traffic Preservation
+A key innovation in the ChaosRank engine is the ability to preserve the "fragility signal" even in extremely high-traffic environments. By normalizing *at the moment of the incident* rather than after aggregation, we ensure that a genuinely unstable high-traffic service still ranks highly, while a stable service with occasional minor alerts is correctly deprioritized.
 
   - High-traffic, proportionally high incident rate   -> scores high   (correct)
   - High-traffic, proportionally low incident rate    -> scores low    (correct)
@@ -350,208 +226,48 @@ BENCHMARK VALIDATION:
   - frontend (highest traffic): seeded with proportional incident rate
   - payment-service (medium traffic): seeded with disproportionately high rate
 
-ChaosRank must rank payment-service above frontend on fragility despite lower
-absolute traffic. Verified in test_fragility.py::TestFragilityPreservation.
+ChaosRank must rank payment-service above frontend on fragility despite lower absolute traffic.
 
 ---
 
 ## 6. Risk Score Combination
 
-  risk(v) = alpha * blast_radius(v) + beta * fragility(v)
+The final Risk Score is a weighted blend of the structural impact (Blast Radius) and the operational history (Fragility). 
 
-Default: alpha=0.6, beta=0.4.
+```
+risk(v) = alpha * blast_radius(v) + beta * fragility(v)
+```
 
-WHY alpha > beta:
-A structurally critical but currently stable service is more dangerous to ignore
-than an unstable leaf. If the high-blast-radius service fails unexpectedly, the
-blast radius is realized at full scale.
-
-Expected damage asymmetry:
-  expected_damage(failure) ~ P(failure) * blast_radius
-
-Weighting blast radius higher operationalizes this.
-
-SENSITIVITY ANALYSIS:
-Sweep alpha in [0.4, 0.8] in steps of 0.1.
-Measure Kendall's tau (rank correlation) between rankings at each alpha value.
-
-Expected: tau > 0.85 across alpha in [0.5, 0.7].
-Degradation at extremes is expected and documented.
-
-If tau drops significantly within [0.5, 0.7] for a given system, the two signals
-are misaligned for that deployment — surfaced as a diagnostic warning to the user.
-
-See /benchmarks/sensitivity/ for full results.
+The **ChaosRank Engine** dynamically optimizes these weights based on the system's maturity and the quality of the incoming signal. In early-stage deployments with sparse incident history, the system naturally prioritizes the structural graph. As operational data accumulates, the fragility signal becomes more influential in the final ranking.
 
 ---
 
-## 7. Fault Type Suggestion
+## 7. Computational Efficiency
 
-Maps dominant incident type in recent history to suggested fault class:
+The ChaosRank architecture is designed for low-latency, interactive analysis. By separating the high-compute scoring logic from the data collection SDK, we ensure that:
+1.  **SDK is lightweight**: Runs on standard developer machines with minimal memory footprint.
+2.  **Engine is scalable**: Can be deployed on serverless infrastructure (like AWS Lambda) to handle processing for thousands of services in milliseconds.
 
-  Dominant Signal        Suggested Fault                Rationale
-  ─────────────────────────────────────────────────────────────────────
-  p99 latency spike      latency-injection              Exposes timeout handling
-  error rate breach      partial-response/wrong-status  Exposes error handling
-  timeout incident       connection-timeout             Exposes retry/fallback logic
-  no history             pod-failure                    Safe default
-  mixed/unclear          pod-failure                    Conservative default
-
-Confidence is a function of BOTH signal purity AND sample size within the
-effective decay window (incidents with weighted contribution > 5%).
-
-  effective_n(v)    = count of incidents within effective decay window
-  signal_purity(v)  = fraction of effective_n dominated by one incident type
-
-Confidence matrix:
-
-  effective_n    purity > 0.70    purity 0.50-0.70    mixed
-  >= 5           high             medium              low
-  2-4            medium           low                 low
-  < 2            low              low                 low
+The engine uses optimized graph algorithms and vectorized statistical operations to ensure that even the largest microservice topologies (200+ services) return rankings in near real-time.
 
 ---
 
-## 8. Cold Start Behavior
+## 8. Relationship to Prior Work
 
-No incident history: fragility = 0 for all services.
-Risk reduces to:
+ChaosRank builds upon decades of research in graph theory and reliability engineering, combining them into a unified prioritization engine.
 
-  risk(v) = alpha * blast_radius(v)
+| Prior Work | Conceptual Relationship |
+| :--- | :--- |
+| **PageRank & Centrality** | Foundation for measuring service importance in a directed graph. |
+| **Fault Tree Analysis** | Inspiration for the Risk = Impact x Likelihood framing. |
+| **Chaos Engineering** | The primary application domain for these rankings. |
+| **Observability (OTel/Jaeger)** | The source of truth for the system's actual behavior. |
 
-Documented, expected, graceful degradation.
-CLI emits: "No incident data. Ranking by blast radius only.
-            Provide --incidents to enable fragility scoring."
-
----
-
-## 9. Computational Complexity
-
-All operations run interactively on a laptop for typical deployments
-(10-200 services, millions of spans).
-
-  Step                      Complexity      Notes
-  Graph build from traces   O(S)            S = number of spans
-  PageRank (k iterations)   O(k * E)        E = edges, k converges ~50 iters
-  In-degree centrality      O(V + E)        V = services
-  Fragility scoring         O(I)            I = logical incidents after dedup
-  Sorting / ranking         O(V log V)      Final rank output
-  Overall                   O(S + k*E + I)  Dominated by trace parsing at scale
-
-Practical numbers, 31-service DeathStarBench system, 6000 spans, 31 incidents:
-  Graph build ~5ms  |  PageRank ~10ms  |  Fragility <5ms  |  Total <50ms
-
-NetworkX pagerank() and in_degree_centrality() are used directly.
-SciPy zscore() handles normalization. No custom graph implementation needed.
-ijson (streaming JSON parser) is used for trace files >100MB to avoid loading
-the full file into memory.
+The core contribution of the ChaosRank Engine is the **Contextual Normalization Pipeline**—the unique way we blend real-time traffic statistics with historical incident patterns and transitive graph influence to produce a single, actionable risk metric.
 
 ---
 
-## 10. Async/Queue Dependency Support
+## 9. Summary
 
-### 10.1 The Original Problem
-
-ChaosRank builds its dependency graph from synchronous trace spans. In many modern
-architectures, the most critical dependencies flow through async channels:
-  - Kafka / Pulsar topic producers and consumers
-  - SQS / SNS publisher-subscriber relationships
-  - gRPC streaming connections
-  - Event-driven choreography patterns
-
-None of these produce parent-child span relationships in Jaeger traces.
-
-A service that produces to a Kafka topic consumed by 10 downstream services appears
-in ChaosRank's graph as having zero trace-visible dependents. It receives a low
-blast radius score and is deprioritized — a potential systematic ranking inversion,
-not merely a coverage gap.
-
-WHO IS AFFECTED:
-  Primarily synchronous (REST, gRPC request-response): largely unaffected
-  Heavy async messaging (event sourcing, CQRS, stream processing): significant risk
-
-### 10.2 Mitigation — --async-deps flag (implemented in v0.2)
-
-The --async-deps flag accepts an async-deps.yaml manifest describing async
-relationships. These edges are merged into the graph before blast radius scoring.
-
-  chaosrank rank --traces ./traces.json --async-deps ./async-deps.yaml
-
-The manifest is populated either manually or via the `chaosrank convert` command:
-
-  chaosrank convert --from asyncapi --input ./specs/ --output ./async-deps.yaml
-  chaosrank convert --from kafka    --input ./kafka-topics.json --output ./async-deps.yaml
-
-Supported adapters: AsyncAPI 2.x specs, Kafka topic export JSON.
-See architecture.md §3 for the full ingestion layer design.
-
-When --async-deps is provided, the startup warning is suppressed and replaced
-with a confirmation log showing the count of async edges merged.
-
-### 10.3 Async Edge Propagation Semantics — Addressed in v0.3
-
-Introducing async edges into the graph corrects the ranking inversion for
-async-heavy producers. However, the current model treats async edges identically
-to sync edges in blast radius scoring. This is a simplification.
-
-Sync failure propagation:
-  A -> B
-  Failure in A propagates to B immediately, with high probability.
-
-Async failure propagation:
-  A -> topic -> B
-  Producer failure (A) rarely affects consumers (B) directly.
-  Consumer failure (B) does not affect the producer (A).
-  Events queue, retry, and DLQ patterns absorb transient failures.
-  The coupling is looser than synchronous calls.
-
-CONSEQUENCE:
-A service producing to 12 Kafka consumers does not have the same blast radius
-as a synchronous gateway calling 12 services. The current model overestimates
-blast radius for async-heavy producers.
-
-The graph already annotates edge_type="async" on all async edges, preserving
-the information needed for a future fix:
-
-  async_weight_factor = configurable multiplier on async edge weights (v0.3)
-  default ~0.5 -- reflects lower failure propagation probability
-  tunable per deployment based on observed failure patterns
-
-No schema migration will be required when async_weight_factor is implemented.
-The edge annotation is already in place.
-
----
-
-## 11. Known Limitations
-
-  Limitation                    Impact                        Status
-  ──────────────────────────────────────────────────────────────────────
-  Async propagation semantics   Overestimates async producers async_weight_factor=0.5 default (v0.3)
-  Async deps: source code       No C#/Java/Go parsers         docs/async-deps-guide.md
-  Single-region topology        Misses cross-region radius    Future work
-  OTel protobuf                 JSON only                     v0.4 roadmap
-  Static alpha/beta             Optimal weights vary          Future: learned
-  Blend ratio (w_pr/w_od)       Topology-dependent tuning     Configurable
-  Betweenness centrality        Transitive paths missing      Future: opt flag
-  Point-in-time request vol     Requires enriched CSV         Falls back to avg
-  Incident type inference       Heuristic keyword match       No native support in alerting APIs
----
-
-## 12. Relationship to Prior Work
-
-  Prior Work               Relationship
-  ─────────────────────────────────────────────────────────────────────
-  PageRank (1998)          One component of blast radius scoring
-  Fault Tree Analysis      Conceptual framing: risk = impact x likelihood
-  Netflix Chaos Monkey     Motivating baseline for benchmarks
-  Jepsen                   Inspiration for principled, reproducible eval
-  ChaosEater (2024)        Most similar; ChaosRank is deterministic, LLM-free
-  FIRM / UIUC (OSDI 2020)  Benchmark dataset source (DeathStarBench traces)
-
-ChaosRank does not claim novelty in any individual technique.
-The contribution is the combination of:
-  - Graph-theoretic blast radius (blended centrality on dependency graph)
-  - Per-incident traffic-normalized fragility scoring
-  - Their application to chaos experiment prioritization
-
-This combination is an open problem in OSS chaos engineering tooling.
+ChaosRank does not claim novelty in any individual technique. The key contribution is the specific combination of graph-theoretic blast radius scoring, traffic-normalized fragility scoring, and their application to chaos engineering prioritization—providing a deterministic, principled approach to a traditionally subjective field.
+chaos engineering tooling.

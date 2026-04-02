@@ -1,46 +1,36 @@
-# ChaosRank
+# ChaosRank (Public SDK)
 
 **Chaos engineering requires a hypothesis. ChaosRank tells you where to point it.**
 
 ![CI](https://github.com/Medinz01/chaosrank/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-Apache_2.0-green)
-![Tests](https://img.shields.io/badge/tests-244%20passing-brightgreen)
-![PyPI](https://img.shields.io/pypi/v/chaosrank-cli)
 
-ChaosRank analyzes your service dependency graph and incident history to rank which service to target next and what fault to inject — giving you a data-driven starting point before you run a single experiment.
+ChaosRank analyzes your service dependency graph and incident history to rank which service to target next. 
 
-```
-Rank  Service                    Risk   Blast  Fragility  Suggested Fault     Confidence
-1     composepost-uploadcreator  0.888  0.907  0.860      latency-injection   medium
-2     composepost-uploadmedia    0.866  0.907  0.805      latency-injection   medium
-3     urlservice-upload          0.770  0.669  0.922      latency-injection   low
-4     composepost-uploadurl      0.738  1.000  0.341      pod-failure         low
-5     nginx-compose-post         0.200  0.000  0.393      pod-failure         low
-```
+**This is the Open Core SDK.** It works by collecting your system data and sending it to the **ChaosRank Engine** for secure, high-performance scoring.
+
+ChaosRank (Open Core) analyzes your service dependency graph and incident history to rank which service to target next. 
+
+**Note: This is the Public SDK.** It requires the [ChaosRank Engine](https://github.com/Medinz01/ChaosRank-Engine) (private) to perform scoring operations.
 
 ---
 
-## The Problem
+## Open Core Architecture
 
-Chaos engineering teams face a prioritization problem: given a system with 20+ microservices, which service should you break first?
+ChaosRank is split into two components to protect core mathematical IP while allowing public development of adapters:
+1.  **Public SDK (This repo)**: CLI, trace parsing, and incident collection.
+2.  **Private Engine**: Core scoring algorithms (Blast Radius, Fragility, Adaptive).
 
-Today the answer is gut feel, "whatever failed last week", or random selection. None of these are principled. A payment service with 15 downstream dependents is not the same risk as an internal logging sidecar — but most teams treat them identically.
-
-**Core framing:** `risk = impact × likelihood`
-
-- **Blast radius** estimates impact — how many services are affected if this one fails?
-- **Fragility** estimates likelihood — based on incident history, how probable is degradation?
-
-ChaosRank estimates both, combines them, and tells you which service to target next.
+### Choose Your Hosting Model:
+*   **SaaS (Community)**: Point your SDK to a managed ChaosRank Engine URL.
+*   **Self-Hosted (Enterprise)**: Run the engine Docker container in your own infrastructure.
 
 ---
 
 ## Results
 
-Evaluated on the **DeathStarBench social-network topology** (31 services) from the UIUC/FIRM dataset (OSDI 2020). Three high-risk services were identified as weaknesses based on structural importance and anomaly injection history.
-
-![Discovery curve](benchmarks/results/discovery_curve.png)
+Evaluated on the **DeathStarBench social-network topology** (31 services) from the UIUC/FIRM dataset (OSDI 2020). ChaosRank's engine identifies high-risk services by combining structural importance (traces) and history (incidents).
 
 | Metric | ChaosRank | Random | Improvement |
 |---|---|---|---|
@@ -55,13 +45,17 @@ ChaosRank found all 3 weaknesses in exactly 3 experiments across all 20 trials. 
 
 ## How It Works
 
-### Risk Score
+ChaosRank uses a **Client-Server** model. The SDK (this repo) acts as the "Body," collecting traces and incidents from your environment. These are non-destructively summarized and sent to the **ChaosRank Engine** (The "Brain") for scoring.
 
 ```
-risk(service) = alpha * blast_radius(service) + beta * fragility(service)
+traces.json  ──► [ SDK Parser ] ──► [ EngineClient ] ──► [ Hosted Engine ]
+incidents.csv ──► [ SDK Parser ] ──► [ EngineClient ] ──► [ Risk Ranking ]
 ```
 
-Default: `alpha=0.6, beta=0.4`. Blast radius is weighted higher because a stable-but-critical service is more dangerous to ignore than an unstable leaf — its failure would be high-impact and potentially surprising.
+The engine provides deterministic, principled rankings based on:
+- **Blast Radius**: Transitive impact of failure (Impact).
+- **Fragility**: Load-normalized incident history (Likelihood).
+- **Adaptive Weights**: Self-correcting risk factors based on experiment outcomes.
 
 ### Blast Radius — Blended Centrality
 
@@ -96,21 +90,29 @@ See [docs/algorithm.md](docs/algorithm.md) for the full mathematical derivation.
 
 ## Installation
 
-```bash
-pip install chaosrank-cli
-# or isolated install (recommended)
-pipx install chaosrank-cli
-```
-
-**Requirements:** Python 3.11+
-
-### From source
+To ensure you have the latest features and to support our Open Core development model, ChaosRank is distributed via GitHub:
 
 ```bash
+# 1. Clone the repository
 git clone https://github.com/Medinz01/chaosrank
 cd chaosrank
-pip install -e ".[dev]"
+
+# 2. Install dependencies locally
+pip install -e .
 ```
+
+### Configuration
+
+ChaosRank requires an engine endpoint to function. Update your `chaosrank.yaml`:
+
+```yaml
+engine:
+  url: "https://api.chaosrank.com"  # Or your self-hosted URL
+  api_key: "your-access-key"
+```
+
+Or use environment variables:
+`export CHAOSRANK_API_KEY=your-key`
 
 ### Docker
 
@@ -422,14 +424,9 @@ chaosrank/
 │       ├── table.py              # Rich table renderer
 │       ├── json_out.py           # JSON output with reasoning
 │       └── litmus.py             # LitmusChaos ChaosEngine manifest
-├── tests/                        # 244 tests
-├── benchmarks/
-│   ├── convert_deathstar.py      # DeathStarBench → Jaeger JSON converter
-│   ├── extract_incidents.py      # Anomaly traces → incident CSV extractor
-│   ├── run_comparison.py         # 20-trial benchmark
-│   ├── plot_results.py           # Discovery curve chart
-│   └── real_traces/              # Converted DeathStarBench data
+├── tests/                        # 117 tests
 ├── docs/
+│   ├── OPEN_CORE.md              # Beginner's guide to the architecture
 │   ├── algorithm.md              # Full mathematical derivation
 │   ├── architecture.md           # Component map and data flow
 │   └── future-work.md            # v0.2 roadmap

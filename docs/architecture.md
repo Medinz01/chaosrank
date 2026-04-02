@@ -1,77 +1,67 @@
 # ChaosRank — Architecture
 
-> This document describes the system architecture, component responsibilities,
+> This document describes the Open Core system architecture, component responsibilities,
 > data flow, and design decisions. For the mathematical derivation, see algorithm.md.
 
 ---
 
 ## 1. Overview
 
-ChaosRank is a CLI tool. No server, no database, no running cluster required.
-Input: trace export + optional incident history + optional async topology.
-Output: ranked service list.
+ChaosRank uses a **Client-Server Architecture**. 
+
+- **Public SDK**: A CLI tool that parses trace exports and incident history locally.
+- **ChaosRank Engine**: A remote service (SaaS or Self-Hosted) that performs the proprietary risk scoring.
+
+### High-Level Data Flow
 
 ```
-traces.json ──────────────────────────────────────────────────────────────┐
-                                                                           ▼
-incidents.csv ──────────────────────────────────────────┐         ┌───────────────┐
-                                                         ▼         │               │
-                                               ┌──────────────┐   │    ranker     │──► table
-                                               │  fragility   │──►│               │──► JSON
-                                               └──────────────┘   │  risk = α·BR  │──► litmus YAML
-                                                                   │       + β·FR  │
-                    ┌──────────────┐                               │               │
-traces.json ───────►│ graph builder│──► blast_radius ────────────►│               │
-                    └──────────────┘ ▲                             └───────────────┘
-                                     │
-async-deps.yaml ─────────────────────┘
-(merged before scoring)
+traces.json ─────┐
+                 ▼
+          ┌──────────────┐       ┌──────────────┐       ┌────────────────┐
+          │  SDK Parser  │──────►│ EngineClient │──────►│  Remote Engine │
+          └──────────────┘       └──────────────┘       └────────────────┘
+incidents.csv ───▲                      │                      │
+                 │                      ▼                      ▼
+          ┌──────────────┐      ┌───────────────┐      ┌────────────────┐
+          │ SDK Incidents│◄─────┤   CLI Table   │◄─────┤   Risk Scores  │
+          └──────────────┘      └───────────────┘      └────────────────┘
 ```
 
 ---
 
 ## 2. Component Map
 
+### 2.1 Public SDK (chaosrank/)
 ```
 chaosrank/
 ├── cli.py                    # Entry point. Typer commands: rank, graph, convert, incidents.
-│                             # Orchestrates the pipeline. Owns config loading.
 │
-├── adapters/                 # Async topology ingestion — external format → async-deps.yaml
-│   ├── base.py               # AsyncDepsAdapter ABC — one method: convert(path) -> list[dict]
-│   ├── asyncapi.py           # AsyncAPI 2.x spec → async-deps.yaml entries
-│   └── kafka.py              # Kafka topic export JSON → async-deps.yaml entries
+├── engine/                   # Communication Layer
+│   ├── client.py             # HTTP client for Engine API
+│   └── serializer.py         # Graph/Incident serialization for transport
 │
-├── incident_adapters/        # Incident ingestion — alerting APIs → list[Incident]
-│   ├── base.py               # IncidentAdapter ABC — fetch(window_days) + shared helpers
-│   ├── pagerduty.py          # PagerDuty REST API v2
-│   ├── alertmanager.py       # Prometheus Alertmanager API
-│   ├── grafana_oncall.py     # Grafana OnCall API
-│   ├── opsgenie.py           # Opsgenie API
-│   └── csv_export.py         # list[Incident] → ChaosRank incidents.csv
+├── adapters/                 # Async topology ingestion
+│   ├── base.py               # AsyncDepsAdapter ABC
+│   ├── asyncapi.py           # AsyncAPI 2.x support
+│   └── kafka.py              # Kafka topic support
 │
-├── parser/
-│   ├── jaeger.py             # Jaeger JSON → {(caller, callee): weight} edge map
-│   ├── otlp.py               # OTel OTLP JSON → edge map (Collector + Tempo envelopes)
-│   ├── incidents.py          # incidents.csv → ServiceIncidents dataclass
-│   ├── async_deps.py         # async-deps.yaml → merged into nx.DiGraph
-│   └── normalize.py          # Service name normalization pipeline
+├── incident_adapters/        # Incident ingestion (PagerDuty, Prometheus, etc.)
 │
-├── graph/
-│   ├── builder.py            # Edge map → NetworkX DiGraph
-│   ├── blast_radius.py       # DiGraph → {service: blast_radius_score}
-│   └── visualize.py          # DiGraph → Graphviz DOT string
+├── parser/                   # Local Data Processing
+│   ├── jaeger.py             # Jaeger JSON Parser
+│   ├── otlp.py               # OTel OTLP Parser
+│   ├── incidents.py          # Incident CSV Parser
+│   └── normalize.py          # Service name normalization
 │
-├── scorer/
-│   ├── fragility.py          # ServiceIncidents → {service: fragility_score}
-│   ├── ranker.py             # blast_radius + fragility → ranked list
-│   └── suggest.py            # incident history → (fault_type, confidence)
-│
-└── output/
-    ├── table.py              # ranked list → Rich terminal table
-    ├── json_out.py           # ranked list → JSON with reasoning field
-    └── litmus.py             # ranked list → LitmusChaos ChaosEngine YAML
+└── output/                   # Presentation Layer (Table, JSON, Litmus)
 ```
+
+### 2.2 Private Engine (chaosrank-engine/)
+The following components are hosted remotely and protected:
+*   **Scorer Service**: FastAPI application handling `/v1/rank`.
+*   **Ranking Engine**: Blended PageRank, Fragility computation, and Z-Score normalization.
+*   **Adaptive Layer**: Bayesian weight correction and experiment feedback loop.
+*   **Orchestration**: Graph merging and federation for multi-cluster analysis.
 
 ---
 
