@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chaosrank-cli"
+version = "1.0.0"
+description = "Risk-driven chaos experiment scheduler — rank which microservice to chaos-test next"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [
+    {name = "Manideep Sale", email = "mdsmanideep@gmail.com"}
+]
+keywords = [
+    "chaos-engineering",
+    "microservices",
+    "site-reliability-engineering",
+    "sre",
+    "distributed-systems",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Monitoring",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = [
+    # Graph construction (local — in public repo)
+    "networkx>=3.2",
+    # CLI + output
+    "typer>=0.9",
+    "rich>=13.0",
+    # Config + parsers
+    "pyyaml>=6.0",
+    "ijson>=3.2",
+    # Engine HTTP client
+    "requests>=2.31",
+]
+# NOTE: numpy/scipy are dependencies of chaosrank-engine (private), not the public SDK.
+
+[project.urls]
+Homepage = "https://github.com/Medinz01/chaosrank"
+Repository = "https://github.com/Medinz01/chaosrank"
+"Bug Tracker" = "https://github.com/Medinz01/chaosrank/issues"
+Changelog = "https://github.com/Medinz01/chaosrank/blob/main/CHANGELOG.md"
+
+[project.scripts]
+chaosrank = "chaosrank.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.1",
+]
+protobuf = ["opentelemetry-proto>=1.0"]
+benchmark = [
+    "matplotlib>=3.7",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["chaosrank*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

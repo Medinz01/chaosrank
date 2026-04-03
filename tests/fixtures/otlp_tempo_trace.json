@@ -1,0 +1,388 @@
+{
+    "batches": [
+        {
+            "resource": {
+                "attributes": [
+                    {
+                        "key": "service.name",
+                        "value": {
+                            "stringValue": "frontend"
+                        }
+                    }
+                ]
+            },
+            "instrumentationLibrarySpans": [
+                {
+                    "instrumentationLibrary": {
+                        "name": "frontend-tracer"
+                    },
+                    "spans": [
+                        {
+                            "traceId": "trace000",
+                            "spanId": "fe_000",
+                            "parentSpanId": "",
+                            "name": "HTTP GET /checkout",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000000000000000",
+                            "endTimeUnixNano": "1700000000100000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace001",
+                            "spanId": "fe_001",
+                            "parentSpanId": "",
+                            "name": "HTTP GET /checkout",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000001000000000",
+                            "endTimeUnixNano": "1700000001100000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace002",
+                            "spanId": "fe_002",
+                            "parentSpanId": "",
+                            "name": "HTTP GET /checkout",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000002000000000",
+                            "endTimeUnixNano": "1700000002100000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace003",
+                            "spanId": "fe_003",
+                            "parentSpanId": "",
+                            "name": "HTTP GET /checkout",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000003000000000",
+                            "endTimeUnixNano": "1700000003100000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace004",
+                            "spanId": "fe_004",
+                            "parentSpanId": "",
+                            "name": "HTTP GET /checkout",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000004000000000",
+                            "endTimeUnixNano": "1700000004100000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace005",
+                            "spanId": "fe_005",
+                            "parentSpanId": "",
+                            "name": "HTTP GET /checkout",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000005000000000",
+                            "endTimeUnixNano": "1700000005100000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace006",
+                            "spanId": "fe_006",
+                            "parentSpanId": "",
+                            "name": "HTTP GET /checkout",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000006000000000",
+                            "endTimeUnixNano": "1700000006100000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace007",
+                            "spanId": "fe_007",
+                            "parentSpanId": "",
+                            "name": "HTTP GET /checkout",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000007000000000",
+                            "endTimeUnixNano": "1700000007100000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace008",
+                            "spanId": "fe_008",
+                            "parentSpanId": "",
+                            "name": "HTTP GET /checkout",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000008000000000",
+                            "endTimeUnixNano": "1700000008100000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace009",
+                            "spanId": "fe_009",
+                            "parentSpanId": "",
+                            "name": "HTTP GET /checkout",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000009000000000",
+                            "endTimeUnixNano": "1700000009100000000",
+                            "status": {}
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "resource": {
+                "attributes": [
+                    {
+                        "key": "service.name",
+                        "value": {
+                            "stringValue": "payment-service"
+                        }
+                    }
+                ]
+            },
+            "instrumentationLibrarySpans": [
+                {
+                    "instrumentationLibrary": {
+                        "name": "payment-tracer"
+                    },
+                    "spans": [
+                        {
+                            "traceId": "trace000",
+                            "spanId": "pay_000",
+                            "parentSpanId": "fe_000",
+                            "name": "processPayment",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000000020000000",
+                            "endTimeUnixNano": "1700000000080000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace001",
+                            "spanId": "pay_001",
+                            "parentSpanId": "fe_001",
+                            "name": "processPayment",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000001020000000",
+                            "endTimeUnixNano": "1700000001080000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace002",
+                            "spanId": "pay_002",
+                            "parentSpanId": "fe_002",
+                            "name": "processPayment",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000002020000000",
+                            "endTimeUnixNano": "1700000002080000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace003",
+                            "spanId": "pay_003",
+                            "parentSpanId": "fe_003",
+                            "name": "processPayment",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000003020000000",
+                            "endTimeUnixNano": "1700000003080000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace004",
+                            "spanId": "pay_004",
+                            "parentSpanId": "fe_004",
+                            "name": "processPayment",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000004020000000",
+                            "endTimeUnixNano": "1700000004080000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace005",
+                            "spanId": "pay_005",
+                            "parentSpanId": "fe_005",
+                            "name": "processPayment",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000005020000000",
+                            "endTimeUnixNano": "1700000005080000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace006",
+                            "spanId": "pay_006",
+                            "parentSpanId": "fe_006",
+                            "name": "processPayment",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000006020000000",
+                            "endTimeUnixNano": "1700000006080000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace007",
+                            "spanId": "pay_007",
+                            "parentSpanId": "fe_007",
+                            "name": "processPayment",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000007020000000",
+                            "endTimeUnixNano": "1700000007080000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace008",
+                            "spanId": "pay_008",
+                            "parentSpanId": "fe_008",
+                            "name": "processPayment",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000008020000000",
+                            "endTimeUnixNano": "1700000008080000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace009",
+                            "spanId": "pay_009",
+                            "parentSpanId": "fe_009",
+                            "name": "processPayment",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000009020000000",
+                            "endTimeUnixNano": "1700000009080000000",
+                            "status": {}
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "resource": {
+                "attributes": [
+                    {
+                        "key": "service.name",
+                        "value": {
+                            "stringValue": "database"
+                        }
+                    }
+                ]
+            },
+            "instrumentationLibrarySpans": [
+                {
+                    "instrumentationLibrary": {
+                        "name": "db-tracer"
+                    },
+                    "spans": [
+                        {
+                            "traceId": "trace000",
+                            "spanId": "db_000",
+                            "parentSpanId": "pay_000",
+                            "name": "SELECT payments",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000000040000000",
+                            "endTimeUnixNano": "1700000000060000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace001",
+                            "spanId": "db_001",
+                            "parentSpanId": "pay_001",
+                            "name": "SELECT payments",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000001040000000",
+                            "endTimeUnixNano": "1700000001060000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace002",
+                            "spanId": "db_002",
+                            "parentSpanId": "pay_002",
+                            "name": "SELECT payments",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000002040000000",
+                            "endTimeUnixNano": "1700000002060000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace003",
+                            "spanId": "db_003",
+                            "parentSpanId": "pay_003",
+                            "name": "SELECT payments",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000003040000000",
+                            "endTimeUnixNano": "1700000003060000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace004",
+                            "spanId": "db_004",
+                            "parentSpanId": "pay_004",
+                            "name": "SELECT payments",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000004040000000",
+                            "endTimeUnixNano": "1700000004060000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace005",
+                            "spanId": "db_005",
+                            "parentSpanId": "pay_005",
+                            "name": "SELECT payments",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000005040000000",
+                            "endTimeUnixNano": "1700000005060000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace006",
+                            "spanId": "db_006",
+                            "parentSpanId": "pay_006",
+                            "name": "SELECT payments",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000006040000000",
+                            "endTimeUnixNano": "1700000006060000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace007",
+                            "spanId": "db_007",
+                            "parentSpanId": "pay_007",
+                            "name": "SELECT payments",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000007040000000",
+                            "endTimeUnixNano": "1700000007060000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace008",
+                            "spanId": "db_008",
+                            "parentSpanId": "pay_008",
+                            "name": "SELECT payments",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000008040000000",
+                            "endTimeUnixNano": "1700000008060000000",
+                            "status": {}
+                        },
+                        {
+                            "traceId": "trace009",
+                            "spanId": "db_009",
+                            "parentSpanId": "pay_009",
+                            "name": "SELECT payments",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000009040000000",
+                            "endTimeUnixNano": "1700000009060000000",
+                            "status": {}
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "resource": {
+                "attributes": []
+            },
+            "instrumentationLibrarySpans": [
+                {
+                    "spans": [
+                        {
+                            "traceId": "traceX",
+                            "spanId": "orphan_001",
+                            "parentSpanId": "",
+                            "name": "orphan-span",
+                            "kind": 2,
+                            "startTimeUnixNano": "1700000099000000000",
+                            "endTimeUnixNano": "1700000099010000000",
+                            "status": {}
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

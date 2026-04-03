@@ -1,0 +1,64 @@
+{
+  "count": 2,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": "OG001",
+      "received_at": "2026-02-10T08:00:00Z",
+      "resolved_at": "2026-02-10T08:30:00Z",
+      "title": "High latency detected",
+      "alerts": [
+        {
+          "id": "A001",
+          "alert_group_id": "OG001",
+          "created_at": "2026-02-10T08:00:00Z",
+          "payload": {
+            "title": "High latency detected",
+            "labels": {
+              "service": "payment-service",
+              "severity": "critical"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "OG002",
+      "received_at": "2026-02-14T15:00:00Z",
+      "resolved_at": null,
+      "title": "Error spike",
+      "alerts": [
+        {
+          "id": "A002",
+          "alert_group_id": "OG002",
+          "created_at": "2026-02-14T15:00:00Z",
+          "payload": {
+            "title": "Error spike",
+            "labels": {
+              "job": "cart-service",
+              "severity": "warning"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "OG003",
+      "received_at": "2026-02-21T09:00:00Z",
+      "resolved_at": null,
+      "title": "Pod restarting",
+      "alerts": [
+        {
+          "id": "A003",
+          "alert_group_id": "OG003",
+          "created_at": "2026-02-21T09:00:00Z",
+          "payload": {
+            "title": "Pod restarting",
+            "labels": {}
+          }
+        }
+      ]
+    }
+  ]
+}
