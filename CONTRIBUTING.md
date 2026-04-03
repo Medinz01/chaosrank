@@ -63,7 +63,7 @@ pytest tests/test_fragility.py::TestFragilityPreservation::test_payment_ranks_ab
 pytest tests/ --cov=chaosrank --cov-report=term-missing
 ```
 
-All 107 tests must pass before submitting a PR.
+All 244+ tests must pass before submitting a PR.
 
 ---
 
@@ -98,19 +98,12 @@ do not break this test.
 
 ## Making Changes
 
-### Blast radius
+### CLI & Parsers
 
-The semantic model is callee-centric: services called by many score high.
-Graph G has edges pointing caller → callee. Centrality uses `pagerank(G)`
-and `in_degree_centrality(G)` — no graph reversal in the hot path.
-See `docs/algorithm.md §4` for why `pagerank(G^T)` was rejected.
-
-### Fragility pipeline
-
-Order matters: dedup → per-incident normalization → decay → z-score.
-Per-incident normalization (Step 2) must happen before aggregation.
-Post-hoc normalization produces ranking inversions at high traffic differentials.
-See `docs/algorithm.md §5.3` for the worked example.
+The SDK handles trace parsing, incident collection, and communication with the **ChaosRank Engine**. When making changes:
+- Keep the parser logic lightweight.
+- Ensure any new adapters implement the necessary base classes.
+- Maintain backward compatibility for the `chaosrank.yaml` configuration.
 
 ### Adding a new output format
 
@@ -122,9 +115,8 @@ See `docs/algorithm.md §5.3` for the worked example.
 ### Adding a new fault type
 
 1. Update `chaosrank/scorer/suggest.py` — add mapping in `FAULT_MAP`
-2. Update `docs/algorithm.md §7` — add row to the fault table
-3. Update `chaosrank/output/litmus.py` — add env vars in `_env_for_fault()`
-4. Add test in `test_ranker.py::TestFaultSuggestion`
+2. Update `chaosrank/output/litmus.py` — add env vars in `_env_for_fault()`
+3. Add test in `test_ranker.py::TestFaultSuggestion`
 
 ---
 
@@ -132,7 +124,7 @@ See `docs/algorithm.md §5.3` for the worked example.
 
 1. Fork the repo and create a branch: `git checkout -b your-feature`
 2. Make your changes
-3. Run `pytest tests/ -v` — all 107 must pass
+3. Run `pytest tests/ -v` — all 244+ must pass
 4. Run `ruff check chaosrank/ tests/` — no warnings
 5. Update `CHANGELOG.md` under `[Unreleased]`
 6. Open a PR with a clear description of what changed and why
@@ -157,14 +149,8 @@ Open a GitHub issue with:
 
 ---
 
-## Areas Where Help Is Wanted
+---
 
-```
---async-deps flag       Accept Kafka/SQS dependency manifest
-OTel OTLP support       Currently Jaeger JSON only
-Sensitivity analysis    Alpha sweep + Kendall tau charts
-Betweenness centrality  Opt-in blast radius component
-Multi-region support    Cross-region blast radius scoring
-```
+## Community
 
-These are tracked in `docs/future-work.md` and the GitHub issue tracker.
+Join our [GitHub Discussions](https://github.com/Medinz01/chaosrank/discussions) to connect with the team and other users.
