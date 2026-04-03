@@ -7,6 +7,17 @@ ChaosRank follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.0.0] — 2026-04-03
+
+### Changed
+- **Open-Core Refactoring:** ChaosRank is now an API Client.
+  - The proprietary `scorer` (fragility and blast radius models) has been migrated to the private `ChaosRank-Engine` SaaS backend.
+  - The public CLI now acts as a Domain-Agnostic Adapter Hub handling trace parsing, async topology generation, and incident aggregation.
+- Introduces `EngineClient` for HTTP communication with the remote scaling backend.
+- Local command logic now gracefully fails if the engine API is offline or unreachable.
+
+---
+
 ## [0.3.0] — 2026-03-15
 
 ### Added
