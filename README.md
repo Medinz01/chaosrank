@@ -2,6 +2,9 @@
 
 **Chaos engineering requires a hypothesis. ChaosRank tells you where to point it.**
 
+> **💬 Questions? Feedback?** Join our [GitHub Discussions](https://github.com/Medinz01/chaosrank/discussions) to connect with the team.
+
+[![PyPI](https://img.shields.io/pypi/v/chaosrank-cli)](https://pypi.org/project/chaosrank-cli/)
 ![CI](https://github.com/Medinz01/chaosrank/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-Apache_2.0-green)
@@ -90,7 +93,15 @@ See [docs/algorithm.md](docs/algorithm.md) for the full mathematical derivation.
 
 ## Installation
 
-To ensure you have the latest features and to support our Open Core development model, ChaosRank is distributed via GitHub:
+ChaosRank is distributed via PyPI. We recommend installing in a virtual environment:
+
+```bash
+pip install chaosrank-cli
+```
+
+### From Source
+
+To ensure you have the latest features and to support our Open Core development model, ChaosRank is also available from GitHub:
 
 ```bash
 # 1. Clone the repository
@@ -107,7 +118,7 @@ ChaosRank requires an engine endpoint to function. Update your `chaosrank.yaml`:
 
 ```yaml
 engine:
-  url: "https://api.chaosrank.com"  # Or your self-hosted URL
+  url: "https://m3ed35tnfb.execute-api.ap-south-1.amazonaws.com"  # Managed SaaS Endpoint
   api_key: "your-access-key"
 ```
 
@@ -446,7 +457,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, testing, and PR guidelines.
 - [docs/algorithm.md](docs/algorithm.md) — full mathematical derivation
 - [docs/architecture.md](docs/architecture.md) — component map, data flow, ingestion layer design
 - [docs/async-deps-guide.md](docs/async-deps-guide.md) — async manifest format and manual extraction guide
-- [docs/future-work.md](docs/future-work.md) — roadmap
 - [benchmarks/sensitivity/](benchmarks/sensitivity/) — hyperparameter stability analysis
 
 ## Changelog
