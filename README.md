@@ -76,16 +76,26 @@ pip install -e .
 
 ### Configuration
 
-ChaosRank requires an engine endpoint to function. Update your `chaosrank.yaml`:
+ChaosRank works out-of-the-box with a shared public key for testing. Update your `chaosrank.yaml`:
 
 ```yaml
 engine:
   url: "https://m3ed35tnfb.execute-api.ap-south-1.amazonaws.com"  # Managed SaaS Endpoint
-  api_key: "your-access-key"
+  api_key: "chaosrank-public-dev"                                # Shared Public Key (Rate Limited)
 ```
 
 Or use environment variables:
-`export CHAOSRANK_API_KEY=your-key`
+`export CHAOSRANK_API_KEY=chaosrank-public-dev`
+
+## API Access Tiers
+
+| Tier | Key | Limits | Support |
+|---|---|---|---|
+| **Public** | `chaosrank-public-dev` | Shared, Heavy Rate Limits | Community (Discussions) |
+| **Pro** | *Private Key* | High Throughput, Dedicated | Email/Direct |
+
+### Getting a Pro Key
+For production-scale environments or high-frequency CI pipelines, please request a private key by starting a thread in our [GitHub Discussions](https://github.com/Medinz01/chaosrank/discussions) with the `access-request` label.
 
 ---
 
