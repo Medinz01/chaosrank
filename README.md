@@ -161,18 +161,3 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE) for full text.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, testing, and PR guidelines.
-
-## Documentation
-
-- [docs/algorithm.md](docs/algorithm.md) — full mathematical derivation
-- [docs/architecture.md](docs/architecture.md) — component map, data flow, ingestion layer design
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for version history.
-
-## License
-
-Apache 2.0 — see [LICENSE](LICENSE) for full text.
