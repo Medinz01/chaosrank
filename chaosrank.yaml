@@ -17,6 +17,6 @@ output:
 # Engine connection — point this at your running chaosrank-engine instance.
 # Start locally: docker run -p 8080:8080 -e CHAOSRANK_API_KEYS=devkey chaosrank-engine
 engine:
-  url: https://m3ed35tnfb.execute-api.ap-south-1.amazonaws.com
+  url: https://eud82a2ib7.execute-api.ap-south-1.amazonaws.com
   api_key: chaosrank-public-dev   # reads from env var; or paste key directly
   timeout_seconds: 30
