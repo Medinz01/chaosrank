@@ -21,7 +21,7 @@ ChaosRank is split into two components:
 1.  **CLI (This repo)**: Trace parsing, graph building, and incident collection.
 2.  **Engine**: Core scoring algorithms (Blast Radius, Fragility, Adaptive).
 
-### Running the System:
+### Running the System
 Both the SDK and the Engine are now distributed via PyPI. You can run the engine locally or deploy it to your own cluster. The CLI communicates with the engine via a standard REST API.
 
 ---
@@ -41,11 +41,11 @@ ChaosRank found all 3 weaknesses in exactly 3 experiments across all 20 trials. 
 
 ## How It Works
 
-ChaosRank uses a **Client-Server** model. The SDK (this repo) acts as the "Body," collecting traces and incidents from your environment. These are summarized and sent to the **ChaosRank Engine** (The "Brain") for scoring.
+ChaosRank uses a **Client-Server** model. The CLI (this repo) acts as the "Body," collecting traces and incidents from your environment. These are summarized and sent to the **ChaosRank Engine** (The "Brain") for scoring.
 
 ```
-traces.json  ──► [ SDK Parser ] ──► [ EngineClient ] ──► [ Hosted Engine ]
-incidents.csv ──► [ SDK Parser ] ──► [ EngineClient ] ──► [ Risk Ranking ]
+traces.json   --> [ CLI Parser ] --> [ EngineClient ] --> [ Hosted Engine ]
+incidents.csv --> [ CLI Parser ] --> [ EngineClient ] --> [ Risk Ranking ]
 ```
 
 The engine provides deterministic rankings based on:
@@ -95,10 +95,10 @@ chaosrank rank --traces ./traces.json --incidents ./incidents.csv
 
 ### With async topology (Kafka, SQS, RabbitMQ)
 ```bash
-# Step 1 — convert your async topology source
+# Step 1 - convert your async topology source
 chaosrank convert --from kafka --input ./kafka-topics.json --output ./async-deps.yaml
 
-# Step 2 — rank with async deps merged
+# Step 2 - rank with async deps merged
 chaosrank rank --traces ./traces.json --async-deps ./async-deps.yaml
 ```
 
@@ -139,4 +139,4 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE) for full text.
+Apache 2.0 - see [LICENSE](LICENSE) for full text.
