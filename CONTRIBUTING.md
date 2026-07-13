@@ -1,7 +1,6 @@
-# Contributing to ChaosRank
+# Contributing to ChaosRank CLI
 
-Thanks for your interest. This document covers how to get set up, run tests,
-and submit changes.
+Thanks for your interest. This document covers how to get set up, run tests, and submit changes to the CLI SDK.
 
 ---
 
@@ -12,7 +11,7 @@ and submit changes.
 ### Option A — Local
 
 ```bash
-git clone https://github.com/yourname/chaosrank
+git clone https://github.com/Medinz01/chaosrank
 cd chaosrank
 pip install -e ".[dev]"
 ```
@@ -33,17 +32,7 @@ pip install -e ".[dev]"
 The benchmark scripts require the UIUC/FIRM DeathStarBench dataset.
 Download from: https://doi.org/10.13012/B2IDB-6738796_V1
 
-Mount it when starting the container:
-```bash
-# Linux / macOS
-docker compose run -v /path/to/tracing-data:/data chaosrank
-
-# Windows
-docker compose run -v "C:\path\to\tracing-data:/data" chaosrank
-```
-
-The converted traces are already committed in `benchmarks/real_traces/`
-so the dataset is only needed if you want to re-run the conversion scripts.
+The converted traces are already committed in `benchmarks/real_traces/` so the dataset is only needed if you want to re-run the conversion scripts.
 
 ---
 
@@ -54,16 +43,13 @@ so the dataset is only needed if you want to re-run the conversion scripts.
 pytest tests/ -v
 
 # Single file
-pytest tests/test_fragility.py -v
-
-# Single test
-pytest tests/test_fragility.py::TestFragilityPreservation::test_payment_ranks_above_frontend -v
+pytest tests/test_parser_otlp.py -v
 
 # With coverage
 pytest tests/ --cov=chaosrank --cov-report=term-missing
 ```
 
-All 244+ tests must pass before submitting a PR.
+All tests must pass before submitting a PR.
 
 ---
 
@@ -83,16 +69,16 @@ CI runs ruff on every push — fix warnings before submitting.
 
 ```
 chaosrank/          Core library
+├── cli.py                    # Typer entrypoint: rank, graph, convert
+├── engine/                   # Remote Engine Client (Communication layer)
+├── adapters/                 # Async topology adapters (AsyncAPI, Kafka)
+├── incident_adapters/        # Alerting system adapters (PagerDuty, etc.)
+├── parser/                   # Local Trace/Incident parsing & normalization
+└── output/                   # Table, JSON, Litmus renderers
 tests/              Test suite — mirrors chaosrank/ structure
-docs/               Algorithm derivation, architecture, future work
 benchmarks/         Benchmark scripts and real trace data
 testdata/           Small sample fixtures for manual testing
 ```
-
-Read `docs/algorithm.md` before touching `blast_radius.py` or `fragility.py`.
-The mathematical justification for every design decision is there.
-The key correctness guarantee is `test_fragility.py::TestFragilityPreservation` —
-do not break this test.
 
 ---
 
@@ -105,6 +91,12 @@ The SDK handles trace parsing, incident collection, and communication with the *
 - Ensure any new adapters implement the necessary base classes.
 - Maintain backward compatibility for the `chaosrank.yaml` configuration.
 
+### Adding a new incident adapter
+
+1. Create `chaosrank/incident_adapters/your_system.py`
+2. Implement `IncidentAdapter` subclass
+3. Add tests using `unittest.mock` to mock HTTP calls (no network required in CI)
+
 ### Adding a new output format
 
 1. Create `chaosrank/output/your_format.py`
@@ -112,19 +104,13 @@ The SDK handles trace parsing, incident collection, and communication with the *
 3. Wire into `cli.py` output dispatch block
 4. Add at least one integration test
 
-### Adding a new fault type
-
-1. Update `chaosrank/scorer/suggest.py` — add mapping in `FAULT_MAP`
-2. Update `chaosrank/output/litmus.py` — add env vars in `_env_for_fault()`
-3. Add test in `test_ranker.py::TestFaultSuggestion`
-
 ---
 
 ## Submitting a PR
 
 1. Fork the repo and create a branch: `git checkout -b your-feature`
 2. Make your changes
-3. Run `pytest tests/ -v` — all 244+ must pass
+3. Run `pytest tests/ -v` — all tests must pass
 4. Run `ruff check chaosrank/ tests/` — no warnings
 5. Update `CHANGELOG.md` under `[Unreleased]`
 6. Open a PR with a clear description of what changed and why
@@ -134,8 +120,6 @@ The SDK handles trace parsing, incident collection, and communication with the *
 - [ ] Tests pass (`pytest tests/ -v`)
 - [ ] Lint clean (`ruff check chaosrank/ tests/`)
 - [ ] CHANGELOG updated
-- [ ] If algorithm changed: `docs/algorithm.md` updated
-- [ ] If architecture changed: `docs/architecture.md` updated
 
 ---
 
@@ -146,11 +130,3 @@ Open a GitHub issue with:
 - Python version (`python --version`)
 - What you did, what you expected, what happened
 - Minimal reproducing example if possible
-
----
-
----
-
-## Community
-
-Join our [GitHub Discussions](https://github.com/Medinz01/chaosrank/discussions) to connect with the team and other users.

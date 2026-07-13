@@ -7,6 +7,22 @@ ChaosRank follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [1.0.3] — 2026-07-13
+
+### Changed
+- **Keyless Open Core**: Removed all API key and tier restrictions. Transitioned to a fully self-hosted/open engine architecture.
+- Removed outdated `docs/` directory.
+- Removed API token configuration requirements.
+
+---
+
+## [1.0.2] — 2026-07-13
+
+### Changed
+- Minor bug fixes and PyPI updates.
+
+---
+
 ## [1.0.1] — 2026-04-03
 
 ### Added
