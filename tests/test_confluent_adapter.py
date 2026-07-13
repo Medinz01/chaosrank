@@ -42,9 +42,6 @@ from chaosrank.adapters.confluent import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 def _subject(
     name: str,
@@ -96,9 +93,6 @@ def adapter():
     return ConfluentSchemaRegistryAdapter()
 
 
-# ---------------------------------------------------------------------------
-# _extract_topic
-# ---------------------------------------------------------------------------
 
 class TestExtractTopic:
     @pytest.mark.parametrize("subject,expected", [
@@ -137,14 +131,9 @@ class TestExtractTopic:
         assert _extract_topic(subject, STRATEGY_AUTO) == expected
 
     def test_auto_topic_name_takes_priority_over_topic_record(self):
-        # "events-value" matches TopicNameStrategy first (ends with -value)
-        # Should NOT match TopicRecordNameStrategy even though "Value" is capitalized
         assert _extract_topic("events-value", STRATEGY_AUTO) == "events"
 
 
-# ---------------------------------------------------------------------------
-# _metadata_owner / _metadata_consumers
-# ---------------------------------------------------------------------------
 
 class TestMetadataExtraction:
     def test_owner_present(self):
@@ -185,9 +174,6 @@ class TestMetadataExtraction:
         assert _metadata_consumers(entry) == []
 
 
-# ---------------------------------------------------------------------------
-# _build_kafka_index
-# ---------------------------------------------------------------------------
 
 class TestBuildKafkaIndex:
     def test_happy_path(self, tmp_kafka_file):
@@ -219,9 +205,6 @@ class TestBuildKafkaIndex:
         assert _build_kafka_index(p) == {}
 
 
-# ---------------------------------------------------------------------------
-# ConfluentSchemaRegistryAdapter.__init__ validation
-# ---------------------------------------------------------------------------
 
 class TestAdapterInit:
     def test_invalid_mode_raises(self):
@@ -248,9 +231,6 @@ class TestAdapterInit:
         assert adapter.source_format() == "confluent"
 
 
-# ---------------------------------------------------------------------------
-# convert — file mode
-# ---------------------------------------------------------------------------
 
 class TestConvertFileMode:
     def test_happy_path_single_subject(self, tmp_sr_file):
@@ -340,9 +320,6 @@ class TestConvertFileMode:
         assert deps == []
 
 
-# ---------------------------------------------------------------------------
-# Kafka fallback
-# ---------------------------------------------------------------------------
 
 class TestKafkaFallback:
     def test_fallback_fills_missing_producer(self, tmp_sr_file, tmp_kafka_file):
@@ -380,9 +357,6 @@ class TestKafkaFallback:
         assert "no producer found" in caplog.text
 
 
-# ---------------------------------------------------------------------------
-# convert — API mode
-# ---------------------------------------------------------------------------
 
 class TestConvertApiMode:
     def _make_adapter(self, **kwargs):
@@ -436,9 +410,6 @@ class TestConvertApiMode:
     def test_bearer_token_set_in_header(self):
         a = self._make_adapter(token="my-bearer-token")
         a._make_session()
-        # Bearer token should be in headers (not basic auth)
-        # We can't test the real session header without requests installed,
-        # so we verify the branching logic — no ":" means bearer path
         assert ":" not in "my-bearer-token"
 
     def test_basic_auth_token_format(self):

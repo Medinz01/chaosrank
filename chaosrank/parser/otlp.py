@@ -72,9 +72,6 @@ def parse_otlp(
     return _parse_full(path, min_call_frequency)
 
 
-# ---------------------------------------------------------------------------
-# Full (in-memory) parser
-# ---------------------------------------------------------------------------
 
 def _parse_full(
     path: Path,
@@ -152,8 +149,6 @@ def _extract_tempo(
 
     for batch in batches:
         service = _extract_service_name(batch)
-        # Tempo uses instrumentationLibrarySpans; fall back to scopeSpans
-        # in case a future version normalises the key name
         scope_groups = (
             batch.get("instrumentationLibrarySpans")
             or batch.get("scopeSpans")
@@ -169,9 +164,6 @@ def _extract_tempo(
     return _build_edge_map(all_spans, span_service, min_call_frequency)
 
 
-# ---------------------------------------------------------------------------
-# Streaming parser (ijson, files > 100 MB)
-# ---------------------------------------------------------------------------
 
 def _parse_streaming(
     path: Path,
@@ -234,9 +226,6 @@ def _parse_streaming_tempo(
     return _build_edge_map(all_spans, span_service, min_call_frequency)
 
 
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
 
 def _build_edge_map(
     all_spans: list[tuple[dict, str]],

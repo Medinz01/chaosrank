@@ -1,7 +1,8 @@
+
 import json
 import logging
 import textwrap
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -241,7 +242,7 @@ class TestServiceIncidentsHelper:
     def test_mean_request_volume(self):
         si = ServiceIncidents(service="svc")
         si.incidents = [
-            Incident(timestamp=datetime.utcnow(), service="svc", type="error", severity="high", request_volume=v)
+            Incident(timestamp=datetime.now(timezone.utc), service="svc", type="error", severity="high", request_volume=v)
             for v in [1000.0, 2000.0, 3000.0]
         ]
         assert si.mean_request_volume == pytest.approx(2000.0)
@@ -249,7 +250,7 @@ class TestServiceIncidentsHelper:
     def test_mean_request_volume_skips_none(self):
         si = ServiceIncidents(service="svc")
         si.incidents = [
-            Incident(timestamp=datetime.utcnow(), service="svc", type="error", severity="high", request_volume=v)
+            Incident(timestamp=datetime.now(timezone.utc), service="svc", type="error", severity="high", request_volume=v)
             for v in [1000.0, None, 3000.0]
         ]
         assert si.mean_request_volume == pytest.approx(2000.0)
@@ -257,7 +258,7 @@ class TestServiceIncidentsHelper:
     def test_mean_request_volume_all_none_returns_none(self):
         si = ServiceIncidents(service="svc")
         si.incidents = [
-            Incident(timestamp=datetime.utcnow(), service="svc", type="error", severity="high", request_volume=None)
+            Incident(timestamp=datetime.now(timezone.utc), service="svc", type="error", severity="high", request_volume=None)
         ]
         assert si.mean_request_volume is None
 

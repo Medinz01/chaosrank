@@ -12,4 +12,9 @@ RUN pip install --no-cache-dir -e ".[dev,benchmark]" || true
 COPY . .
 RUN pip install --no-cache-dir -e ".[dev,benchmark]"
 
+# Security: run as non-root user
+RUN useradd --create-home --shell /bin/bash appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 CMD ["bash"]

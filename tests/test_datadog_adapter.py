@@ -33,9 +33,6 @@ from chaosrank.incident_adapters.datadog import (
 from chaosrank.incident_adapters.base import Incident, infer_type, normalize_severity
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 def adapter():
@@ -98,9 +95,6 @@ def _make_formal_incident(
     return record, included
 
 
-# ---------------------------------------------------------------------------
-# Unit tests — pure functions
-# ---------------------------------------------------------------------------
 
 class TestExtractService:
     def test_service_tag(self):
@@ -173,9 +167,6 @@ class TestSeverityMaps:
         assert normalize_severity(raw) == expected
 
 
-# ---------------------------------------------------------------------------
-# Monitor event parsing
-# ---------------------------------------------------------------------------
 
 class TestParseMonitorEvent:
     def test_happy_path(self, adapter):
@@ -217,16 +208,11 @@ class TestParseMonitorEvent:
         assert inc.type == "latency"
 
     def test_unknown_alert_type_defaults_low(self, adapter):
-        # "no_data" is not in _DD_ALERT_TYPE_MAP or base _SEVERITY_MAP
-        # normalize_severity() fallback returns "low" — correct behaviour
         event = _make_event(alert_type="no_data")
         inc = adapter._parse_monitor_event(event)
         assert inc.severity == "low"
 
 
-# ---------------------------------------------------------------------------
-# Formal incident parsing
-# ---------------------------------------------------------------------------
 
 class TestParseFormalIncident:
     def test_single_service(self, adapter):
@@ -283,9 +269,6 @@ class TestParseFormalIncident:
         assert incidents[0].severity == "low"
 
 
-# ---------------------------------------------------------------------------
-# Deduplication
-# ---------------------------------------------------------------------------
 
 class TestDeduplicate:
     def _make(self, service, inc_type, severity, offset_seconds=0):
@@ -324,9 +307,6 @@ class TestDeduplicate:
         assert adapter._deduplicate([]) == []
 
 
-# ---------------------------------------------------------------------------
-# HTTP — pagination, rate limit, errors
-# ---------------------------------------------------------------------------
 
 class TestFetchMonitorEventsPagination:
     def test_cursor_pagination(self, adapter):
@@ -453,9 +433,6 @@ class TestHttpErrors:
         assert result is None
 
 
-# ---------------------------------------------------------------------------
-# Integration: fetch() end-to-end
-# ---------------------------------------------------------------------------
 
 class TestFetchIntegration:
     def test_fetch_merges_and_sorts(self, adapter):

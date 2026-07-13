@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import networkx as nx
@@ -142,7 +142,7 @@ class CollectionAgent:
 
         snapshot = LocalGraphSnapshot(
             agent_id=self.agent_id,
-            observed_at=datetime.utcnow(),
+            observed_at=datetime.now(timezone.utc),
             total_spans=total_spans,
             edges=observations,
             scope_metadata=self.scope_metadata,
@@ -154,9 +154,6 @@ class CollectionAgent:
         )
         return snapshot
 
-    # ------------------------------------------------------------------
-    # Internal parsing
-    # ------------------------------------------------------------------
 
     def _parse_traces(self, path: Path) -> tuple[dict[tuple[str, str], int], int]:
         """

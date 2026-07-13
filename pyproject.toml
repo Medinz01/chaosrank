@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chaosrank-cli"
-version = "1.0.1"
+version = "1.0.3"
 description = "Risk-driven chaos experiment scheduler — rank which microservice to chaos-test next"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -67,6 +67,9 @@ benchmark = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["chaosrank*"]
+
+[tool.setuptools.package-data]
+chaosrank = ["ui_dist/**/*"]
 
 [tool.ruff]
 line-length = 100

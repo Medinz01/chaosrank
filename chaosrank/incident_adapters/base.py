@@ -1,3 +1,5 @@
+"""Base classes and utilities for incident adapters."""
+
 from abc import ABC, abstractmethod
 
 from chaosrank.parser.incidents import Incident

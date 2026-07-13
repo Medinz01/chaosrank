@@ -28,10 +28,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
-# ---------------------------------------------------------------------------
-# Helpers to build fake protobuf objects
-# (mirrors the opentelemetry.proto.trace.v1 message structure)
-# ---------------------------------------------------------------------------
 
 def _make_attr(key: str, string_value: str = "", int_value: int = 0) -> SimpleNamespace:
     value = SimpleNamespace(string_value=string_value, int_value=int_value,
@@ -90,9 +86,6 @@ def _make_trace_pb2(traces_ns=None, fail=False):
     return m
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 def tmp_proto_file(tmp_path):
@@ -117,9 +110,6 @@ def tmp_empty_file(tmp_path):
     return p
 
 
-# ---------------------------------------------------------------------------
-# _check_format_mismatch
-# ---------------------------------------------------------------------------
 
 class TestCheckFormatMismatch:
     def test_json_file_emits_warning(self, tmp_json_file, caplog):
@@ -140,9 +130,6 @@ class TestCheckFormatMismatch:
         _check_format_mismatch(tmp_path / "nonexistent.pb")  # should not raise
 
 
-# ---------------------------------------------------------------------------
-# _extract_service_proto
-# ---------------------------------------------------------------------------
 
 class TestExtractServiceProto:
     def _call(self, resource):
@@ -184,9 +171,6 @@ class TestExtractServiceProto:
         assert result == "auth-service"
 
 
-# ---------------------------------------------------------------------------
-# _span_to_dict
-# ---------------------------------------------------------------------------
 
 class TestSpanToDict:
     def test_hex_conversion(self):
@@ -216,9 +200,6 @@ class TestSpanToDict:
         assert d["parentSpanId"] == ""
 
 
-# ---------------------------------------------------------------------------
-# parse_otlp_proto — happy paths
-# ---------------------------------------------------------------------------
 
 class TestParseOtlpProto:
     def _parse(self, traces_ns, tmp_proto_file, min_call_frequency=1):
@@ -332,9 +313,6 @@ class TestParseOtlpProto:
         assert edges == {}
 
 
-# ---------------------------------------------------------------------------
-# parse_otlp_proto — error handling
-# ---------------------------------------------------------------------------
 
 class TestParseOtlpProtoErrors:
     def test_parse_failure_raises_value_error(self, tmp_proto_file):
@@ -380,9 +358,6 @@ class TestParseOtlpProtoErrors:
         assert "looks like a JSON file" in caplog.text
 
 
-# ---------------------------------------------------------------------------
-# warn_if_binary (otlp_json_guard) — symmetric check for JSON parser
-# ---------------------------------------------------------------------------
 
 class TestWarnIfBinary:
     def test_binary_file_warns(self, tmp_proto_file, caplog):
@@ -403,9 +378,6 @@ class TestWarnIfBinary:
         warn_if_binary(tmp_path / "nonexistent.json")
 
 
-# ---------------------------------------------------------------------------
-# Edge shape consistency — proto path produces same dict shape as JSON path
-# ---------------------------------------------------------------------------
 
 class TestEdgeShapeConsistency:
     def test_proto_and_json_build_same_edge_keys(self, tmp_proto_file):

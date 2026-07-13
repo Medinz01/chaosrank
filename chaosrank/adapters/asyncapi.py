@@ -1,3 +1,5 @@
+"""Adapter for parsing AsyncAPI specification files to extract topic dependencies."""
+
 import json
 import logging
 from collections import defaultdict

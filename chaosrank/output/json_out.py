@@ -1,3 +1,5 @@
+"""JSON output formatter for ranking results."""
+
 import json
 import sys
 from typing import TextIO

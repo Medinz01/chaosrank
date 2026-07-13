@@ -1,3 +1,5 @@
+"""Base class for all asynchronous dependency adapters."""
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 

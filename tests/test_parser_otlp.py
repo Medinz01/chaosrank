@@ -16,9 +16,6 @@ import pytest
 from chaosrank.parser.otlp import parse_otlp, _extract_service_name
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 FIXTURE = Path(__file__).parent / "fixtures" / "otlp_trace.json"
 
@@ -63,9 +60,6 @@ def _make_otlp(resource_spans: list[dict]) -> dict:
     return {"resourceSpans": resource_spans}
 
 
-# ---------------------------------------------------------------------------
-# TestEdgeExtraction
-# ---------------------------------------------------------------------------
 
 
 class TestEdgeExtraction:
@@ -158,9 +152,6 @@ class TestEdgeExtraction:
         assert ("frontend", "auth-service") in edges
 
 
-# ---------------------------------------------------------------------------
-# TestFixture — exercises the shared otlp_trace.json fixture
-# ---------------------------------------------------------------------------
 
 
 class TestFixture:
@@ -183,16 +174,11 @@ class TestFixture:
         assert "database" not in callers
 
     def test_fixture_unknown_service_from_missing_attribute(self):
-        # The fixture has one resourceSpan with no service.name attribute
-        # It should produce an unknown-service node (warn) but not crash
         edges = parse_otlp(FIXTURE, min_call_frequency=1)
         # unknown-service has no children in fixture — just verify no crash
         assert isinstance(edges, dict)
 
 
-# ---------------------------------------------------------------------------
-# TestServiceNameExtraction
-# ---------------------------------------------------------------------------
 
 
 class TestServiceNameExtraction:
@@ -235,9 +221,6 @@ class TestServiceNameExtraction:
         assert name == "payment-service"
 
 
-# ---------------------------------------------------------------------------
-# TestMalformedInput
-# ---------------------------------------------------------------------------
 
 
 class TestMalformedInput:
@@ -282,9 +265,6 @@ class TestMalformedInput:
             parse_otlp(p, min_call_frequency=1)
 
 
-# ---------------------------------------------------------------------------
-# TestTempoEnvelope — Tempo/Jaeger v2 (batches envelope)
-# ---------------------------------------------------------------------------
 
 TEMPO_FIXTURE = Path(__file__).parent / "fixtures" / "otlp_tempo_trace.json"
 
@@ -428,8 +408,6 @@ class TestEnvelopeAutoDetection:
             _make_tempo_batch("payment-service", spans_pay),
         ])
 
-        # Write directly — _write_otlp appends /trace.json internally so we
-        # cannot pass a filename as the path argument.
         p1 = tmp_path / "collector.json"
         p1.write_text(json.dumps(collector_payload))
         p2 = tmp_path / "tempo.json"

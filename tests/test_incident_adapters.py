@@ -18,9 +18,6 @@ from chaosrank.incident_adapters.opsgenie import OpsgenieAdapter
 from chaosrank.incident_adapters.csv_export import incidents_to_csv
 from chaosrank.parser.incidents import Incident
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -39,9 +36,6 @@ def _load_fixture(name: str) -> dict | list:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
-# ---------------------------------------------------------------------------
-# TestHelpers — shared functions in base.py
-# ---------------------------------------------------------------------------
 
 class TestInferType:
     def test_latency_keyword(self):
@@ -83,9 +77,6 @@ class TestNormalizeSeverity:
         assert normalize_severity("banana") == "low"
 
 
-# ---------------------------------------------------------------------------
-# TestPagerDutyAdapter
-# ---------------------------------------------------------------------------
 
 class TestPagerDutyAdapter:
     def _adapter(self):
@@ -168,9 +159,6 @@ class TestPagerDutyAdapter:
         assert {i.service for i in incidents} == {"svc-a", "svc-b"}
 
 
-# ---------------------------------------------------------------------------
-# TestAlertmanagerAdapter
-# ---------------------------------------------------------------------------
 
 class TestAlertmanagerAdapter:
     def _adapter(self):
@@ -242,9 +230,6 @@ class TestAlertmanagerAdapter:
         assert incidents == []
 
 
-# ---------------------------------------------------------------------------
-# TestGrafanaOnCallAdapter
-# ---------------------------------------------------------------------------
 
 class TestGrafanaOnCallAdapter:
     def _adapter(self):
@@ -299,9 +284,6 @@ class TestGrafanaOnCallAdapter:
         assert incidents == []
 
 
-# ---------------------------------------------------------------------------
-# TestOpsgenieAdapter
-# ---------------------------------------------------------------------------
 
 class TestOpsgenieAdapter:
     def _adapter(self):
@@ -366,9 +348,6 @@ class TestOpsgenieAdapter:
         assert incidents == []
 
 
-# ---------------------------------------------------------------------------
-# TestCsvExport
-# ---------------------------------------------------------------------------
 
 class TestCsvExport:
     def _make_incident(self, service: str = "payment-service", severity: str = "high",

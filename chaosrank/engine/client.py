@@ -35,25 +35,21 @@ class EngineClient:
     Parameters
     ----------
     url:      Base URL of the engine (e.g. 'http://localhost:8080')
-    api_key:  X-ChaosRank-Key header value
-    timeout:  Request timeout in seconds (default 30)
-    compress: If True, gzip-compress request bodies >10KB (default False)
     """
 
     def __init__(
         self,
-        url: str,
-        api_key: str,
-        timeout: int  = _DEFAULT_TIMEOUT,
+        url: str = "http://localhost:8080",
+        timeout: int = 30,
         compress: bool = False,
     ) -> None:
-        self._base    = url.rstrip("/")
+        self._base = url.rstrip("/")
         self._timeout = timeout
         self._compress = compress
         self._session = requests.Session()
         self._session.headers.update({
-            "X-ChaosRank-Key": api_key,
-            "Content-Type":    "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "chaosrank-cli/1.0"
         })
 
     # Health check
@@ -83,12 +79,12 @@ class EngineClient:
         ----------
         G:                  Dependency graph from graph.builder.build_graph()
         service_incidents:  From parser.incidents or incident_adapters fetch()
-        config:             Optional overrides — alpha, beta, decay_lambda, etc.
+        config:             Optional overrides - alpha, beta, decay_lambda, etc.
                             Falls back to engine defaults (matching chaosrank.yaml).
 
         Returns
         -------
-        list[dict] — same schema as the old rank_services() output, sorted by risk desc.
+        list[dict] - same schema as the old rank_services() output, sorted by risk desc.
         Each dict has: rank, service, risk, blast_radius, fragility,
                        suggested_fault, confidence
         """
@@ -115,7 +111,7 @@ class EngineClient:
         Rank with live alpha/beta weights and 95% confidence intervals.
         Weights self-update based on recorded experiment outcomes.
 
-        Returns superset of rank() — adds: alpha_used, beta_used,
+        Returns superset of rank() - adds: alpha_used, beta_used,
         ci_lower, ci_upper, ci_width, low_confidence, confidence_note
         """
         payload = {
@@ -142,7 +138,7 @@ class EngineClient:
 
         Parameters
         ----------
-        ranked_row: A row from adaptive_rank() output — must contain
+        ranked_row: A row from adaptive_rank() output - must contain
                     service, risk, blast_radius, fragility, rank,
                     alpha_used, beta_used
         outcome:    'WEAKNESS_CONFIRMED' | 'WEAKNESS_NOT_FOUND' | 'INCONCLUSIVE'
@@ -247,7 +243,7 @@ class EngineClient:
 
         Returns
         -------
-        list[dict] — same as rank(), services prefixed 'domain_id/service_name'
+        list[dict] - same as rank(), services prefixed 'domain_id/service_name'
         """
         payload: dict[str, Any] = {
             "domains":     domains,

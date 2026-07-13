@@ -1,8 +1,8 @@
-# ChaosRank (Public SDK)
+# ChaosRank CLI
 
 **Chaos engineering requires a hypothesis. ChaosRank tells you where to point it.**
 
-> **💬 Questions? Feedback?** Join our [GitHub Discussions](https://github.com/Medinz01/chaosrank/discussions) to connect with the team.
+> **Questions? Feedback?** Join our [GitHub Discussions](https://github.com/Medinz01/chaosrank/discussions) to connect with the team.
 
 [![PyPI](https://img.shields.io/pypi/v/chaosrank-cli)](https://pypi.org/project/chaosrank-cli/)
 ![CI](https://github.com/Medinz01/chaosrank/actions/workflows/ci.yml/badge.svg)
@@ -11,19 +11,18 @@
 
 ChaosRank analyzes your service dependency graph and incident history to rank which service to target next. 
 
-**This is the Open Core SDK.** It works by collecting your system data and sending it to the **ChaosRank Engine** for secure, high-performance scoring.
+It works by collecting your system data and sending it to the **ChaosRank Engine** for high-performance scoring.
 
 ---
 
-## Open Core Architecture
+## Architecture
 
-ChaosRank is split into two components to protect core mathematical IP while allowing public development of adapters:
-1.  **Public SDK (This repo)**: CLI, trace parsing, and incident collection.
-2.  **Private Engine**: Core scoring algorithms (Blast Radius, Fragility, Adaptive).
+ChaosRank is split into two components:
+1.  **CLI (This repo)**: Trace parsing, graph building, and incident collection.
+2.  **Engine**: Core scoring algorithms (Blast Radius, Fragility, Adaptive).
 
-### Choose Your Hosting Model:
-*   **SaaS (Community)**: Point your SDK to a managed ChaosRank Engine URL.
-*   **Self-Hosted (Enterprise)**: Run the engine Docker container in your own infrastructure.
+### Running the System:
+Both the SDK and the Engine are now distributed via PyPI. You can run the engine locally or deploy it to your own cluster. The CLI communicates with the engine via a standard REST API.
 
 ---
 
@@ -54,8 +53,6 @@ The engine provides deterministic rankings based on:
 - **Fragility**: Load-normalized incident history (Likelihood).
 - **Adaptive Weights**: Self-correcting risk factors based on experiment outcomes.
 
-See [docs/algorithm.md](docs/algorithm.md) for a summary of the mathematical foundation.
-
 ---
 
 ## Installation
@@ -63,7 +60,10 @@ See [docs/algorithm.md](docs/algorithm.md) for a summary of the mathematical fou
 ChaosRank is distributed via PyPI. We recommend installing in a virtual environment:
 
 ```bash
-pip install chaosrank-cli
+pip install chaosrank-cli chaosrank-engine
+
+# Start the engine in the background
+uvicorn chaosrank_engine.api.main:app --port 8080 &
 ```
 
 ### From Source
@@ -76,26 +76,13 @@ pip install -e .
 
 ### Configuration
 
-ChaosRank works out-of-the-box with a shared public key for testing. Update your `chaosrank.yaml`:
+ChaosRank communicates with the engine via HTTP. By default, it expects the engine to be running at `http://localhost:8080`.
+Update your `chaosrank.yaml` if you are hosting the engine remotely:
 
 ```yaml
 engine:
-  url: "https://m3ed35tnfb.execute-api.ap-south-1.amazonaws.com"  # Managed SaaS Endpoint
-  api_key: "chaosrank-public-dev"                                # Shared Public Key (Rate Limited)
+  url: "http://your-engine-host:8080"
 ```
-
-Or use environment variables:
-`export CHAOSRANK_API_KEY=chaosrank-public-dev`
-
-## API Access Tiers
-
-| Tier | Key | Limits | Support |
-|---|---|---|---|
-| **Public** | `chaosrank-public-dev` | Shared, Heavy Rate Limits | Community (Discussions) |
-| **Pro** | *Private Key* | High Throughput, Dedicated | Email/Direct |
-
-### Getting a Pro Key
-For production-scale environments or high-frequency CI pipelines, please request a private key by starting a thread in our [GitHub Discussions](https://github.com/Medinz01/chaosrank/discussions) with the `access-request` label.
 
 ---
 
@@ -136,9 +123,6 @@ chaosrank/
 │   ├── parser/                   # Local Trace/Incident parsing & normalization
 │   └── output/                   # Table, JSON, Litmus renderers
 ├── tests/                        # 244+ tests
-├── docs/
-│   ├── algorithm.md              # Mathematical Summary
-│   ├── architecture.md           # Component map & Data flow
 ├── chaosrank.yaml                # Default configuration
 └── pyproject.toml
 ```
@@ -148,11 +132,6 @@ chaosrank/
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, testing, and PR guidelines.
-
-## Documentation
-
-- [docs/algorithm.md](docs/algorithm.md) — mathematical summary
-- [docs/architecture.md](docs/architecture.md) — component map & data flow
 
 ## Changelog
 

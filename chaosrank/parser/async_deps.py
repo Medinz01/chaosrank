@@ -1,3 +1,5 @@
+"""Parser for merging async dependencies into the service graph."""
+
 import logging
 import statistics
 from pathlib import Path

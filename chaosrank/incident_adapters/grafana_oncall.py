@@ -21,8 +21,6 @@ _PAGE_LIMIT = 100
 class GrafanaOnCallAdapter(IncidentAdapter):
     """Adapter for the Grafana OnCall REST API."""
     def __init__(self, url: str, token: str) -> None:
-        # url: e.g. "https://oncall-prod-us-central-0.grafana.net/oncall"
-        #       or  "http://localhost:8080" for self-hosted
         self._base = url.rstrip("/")
         self._token = token
 
@@ -62,8 +60,6 @@ class GrafanaOnCallAdapter(IncidentAdapter):
             if ts < since:
                 return None
 
-            # Service name extracted from alert payload labels first,
-            # then falls back to the integration/team name
             alerts = group.get("alerts", [])
             service_raw = None
             title = group.get("title", "")

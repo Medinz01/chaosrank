@@ -43,9 +43,6 @@ from chaosrank.incident_adapters.prometheus_volume import (
 from chaosrank.parser.incidents import Incident
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 def backfiller():
@@ -95,9 +92,6 @@ def _mock_get(value: float | None = 1000.0):
     return mock
 
 
-# ---------------------------------------------------------------------------
-# backfill — top level behaviour
-# ---------------------------------------------------------------------------
 
 class TestBackfill:
     def test_empty_list_returns_empty(self, backfiller):
@@ -175,9 +169,6 @@ class TestBackfill:
         assert "request_volume=None after backfill" not in caplog.text
 
 
-# ---------------------------------------------------------------------------
-# Caching
-# ---------------------------------------------------------------------------
 
 class TestCaching:
     def test_same_service_same_bucket_one_query(self, backfiller):
@@ -207,9 +198,6 @@ class TestCaching:
         assert backfiller._session.get.call_count == 2
 
 
-# ---------------------------------------------------------------------------
-# HTTP error handling
-# ---------------------------------------------------------------------------
 
 class TestHttpErrors:
     def test_http_error_returns_none(self, backfiller):
@@ -251,9 +239,6 @@ class TestHttpErrors:
         assert call_count == 2
 
 
-# ---------------------------------------------------------------------------
-# _extract_value
-# ---------------------------------------------------------------------------
 
 class TestExtractValue:
     def test_single_series(self, backfiller):
@@ -293,13 +278,8 @@ class TestExtractValue:
         data = {"status": "success", "data": {"result": [{"metric": {}, "value": [0, "NaN"]}]}}
         with caplog.at_level(logging.WARNING, logger="chaosrank.incident_adapters.prometheus_volume"):
             backfiller._extract_value(data, "svc", "q")
-        # float("NaN") is technically valid but unusual — either None or NaN accepted
-        # main thing: no crash
 
 
-# ---------------------------------------------------------------------------
-# PromQL correctness
-# ---------------------------------------------------------------------------
 
 class TestPromQL:
     def _capture_query(self, backfiller, service, ts):
@@ -364,9 +344,6 @@ class TestPromQL:
         assert "[2m]" in captured["query"]
 
 
-# ---------------------------------------------------------------------------
-# _time_bucket
-# ---------------------------------------------------------------------------
 
 class TestTimeBucket:
     def test_same_minute_same_bucket(self, backfiller):

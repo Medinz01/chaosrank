@@ -15,8 +15,6 @@ logger = logging.getLogger(__name__)
 
 _STREAMING_THRESHOLD_BYTES = 100 * 1024 * 1024  # 100 MB
 
-# Magic bytes that indicate JSON content.
-# Used for secondary format mismatch check only — never blocks parsing.
 _JSON_START_BYTES = (b"{", b"[", b" ", b"\t", b"\n", b"\r")
 
 

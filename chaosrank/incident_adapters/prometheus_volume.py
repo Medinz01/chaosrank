@@ -1,4 +1,7 @@
+"""Prometheus volume backfiller for incident data."""
+
 from __future__ import annotations
+
 
 import logging
 import time
@@ -48,9 +51,6 @@ class PrometheusVolumeBackfiller:
         self._session      = requests.Session()
         self._cache: dict[tuple[str, int], float | None] = {}
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     def backfill(self, incidents: list[Incident]) -> list[Incident]:
         """Return a new list with request_volume filled in from Prometheus.
@@ -105,9 +105,6 @@ class PrometheusVolumeBackfiller:
 
         return result
 
-    # ------------------------------------------------------------------
-    # Query logic
-    # ------------------------------------------------------------------
 
     def _query_volume(self, service: str, ts: datetime) -> float | None:
         """Query Prometheus for request rate for service at timestamp ts.
@@ -206,9 +203,6 @@ class PrometheusVolumeBackfiller:
             )
             return None
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
 
     def _time_bucket(self, ts: datetime) -> int:
         """Round timestamp down to nearest cache_minutes bucket (Unix minutes)."""

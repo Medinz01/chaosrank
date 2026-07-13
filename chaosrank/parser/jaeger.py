@@ -1,3 +1,5 @@
+"""Parser for Jaeger trace exports to extract service dependencies."""
+
 import json
 import logging
 from pathlib import Path

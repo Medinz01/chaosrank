@@ -1,10 +1,6 @@
 """
 Extracts async producer/consumer relationships from Confluent Schema Registry
 and converts them to async-deps.yaml format.
-
-Support modes:
-  - file: Parse a JSON export produced by chaosrank-cli or manual curl.
-  - api: Query the Schema Registry REST API directly.
 """
 
 from __future__ import annotations
@@ -19,7 +15,6 @@ from chaosrank.adapters.base import AsyncDepsAdapter
 
 logger = logging.getLogger(__name__)
 
-# Subject naming strategies
 
 STRATEGY_AUTO         = "auto"
 STRATEGY_TOPIC        = "topic"           # <topic>-key / <topic>-value
@@ -28,20 +23,16 @@ STRATEGY_TOPIC_RECORD = "topic_record"    # <topic>-com.example.OrderCreated
 
 _VALID_STRATEGIES = (STRATEGY_AUTO, STRATEGY_TOPIC, STRATEGY_RECORD, STRATEGY_TOPIC_RECORD)
 
-# Suffixes used by TopicNameStrategy
 _TOPIC_NAME_SUFFIXES = ("-key", "-value")
 
-# Matches TopicRecordNameStrategy: <topic>-<Package.ClassName>
-# The class name part contains at least one dot (fully qualified) or starts uppercase
 _TOPIC_RECORD_RE = re.compile(
     r"^(.+)-"
-    r"([A-Z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]*)*"   # SimpleClassName or Pkg.ClassName
-    r"|[a-z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]+)+)"  # com.example.ClassName (must have dot)
+    r"([A-Z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]*)*"
+    r"|[a-z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]+)+)"
     r"$"
 )
 
 
-# Adapter implementation
 
 class ConfluentSchemaRegistryAdapter(AsyncDepsAdapter):
     """Convert Confluent Schema Registry subjects to async-deps.yaml entries.
@@ -83,9 +74,6 @@ class ConfluentSchemaRegistryAdapter(AsyncDepsAdapter):
         self._timeout         = timeout
         self._kafka_index: dict[str, dict] | None = None  # topic → {producer, consumers}
 
-    # ------------------------------------------------------------------
-    # AsyncDepsAdapter contract
-    # ------------------------------------------------------------------
 
     def source_format(self) -> str:
         return "confluent"
@@ -115,9 +103,6 @@ class ConfluentSchemaRegistryAdapter(AsyncDepsAdapter):
         )
         return deps
 
-    # ------------------------------------------------------------------
-    # File mode
-    # ------------------------------------------------------------------
 
     def _load_subjects_from_file(self, path: Path) -> list[dict]:
         if path.is_dir():
@@ -144,9 +129,6 @@ class ConfluentSchemaRegistryAdapter(AsyncDepsAdapter):
             raise ValueError("'subjects' must be a list.")
         return subjects
 
-    # ------------------------------------------------------------------
-    # API mode
-    # ------------------------------------------------------------------
 
     def _fetch_subjects_from_api(self) -> list[dict]:
         """Fetch all subjects + their latest schema + metadata from SR REST API."""
@@ -154,7 +136,6 @@ class ConfluentSchemaRegistryAdapter(AsyncDepsAdapter):
 
         session = self._make_session()
 
-        # Step 1: list all subject names
         subject_names = self._get_json(session, f"{self.url}/subjects")
         if not isinstance(subject_names, list):
             raise ValueError(
@@ -168,14 +149,12 @@ class ConfluentSchemaRegistryAdapter(AsyncDepsAdapter):
 
         logger.debug("Found %d subjects in Schema Registry", len(subject_names))
 
-        # Step 2: fetch metadata for each subject
         subjects = []
         for name in subject_names:
             encoded = requests.utils.quote(name, safe="")
             url = f"{self.url}/subjects/{encoded}/versions/latest"
             record = self._get_json(session, url)
             if record is not None:
-                # Ensure the subject name is available for downstream processing
                 record.setdefault("subject", name)
                 subjects.append(record)
 
@@ -219,9 +198,6 @@ class ConfluentSchemaRegistryAdapter(AsyncDepsAdapter):
                 logger.error("SR API request failed on %s: %s", url, exc)
             return None
 
-    # ------------------------------------------------------------------
-    # Dependency extraction
-    # ------------------------------------------------------------------
 
     def _build_dependencies(self, subjects: list) -> list[dict]:
         deps = []
@@ -280,14 +256,9 @@ class ConfluentSchemaRegistryAdapter(AsyncDepsAdapter):
         return deps
 
 
-# Naming strategy helpers
 
 def _extract_topic(subject: str, strategy: str) -> str | None:
-    """Extract topic name from a Schema Registry subject name.
-
-    Returns None if the subject cannot be mapped to a topic under the
-    given strategy (e.g. RecordNameStrategy subjects have no topic component).
-    """
+    """Extract topic name from a Schema Registry subject name."""
     if strategy == STRATEGY_TOPIC or strategy == STRATEGY_AUTO:
         for suffix in _TOPIC_NAME_SUFFIXES:
             if subject.endswith(suffix):
@@ -307,14 +278,9 @@ def _extract_topic(subject: str, strategy: str) -> str | None:
             return m.group(1)
 
     if strategy == STRATEGY_RECORD:
-        # RecordNameStrategy: subject IS the schema class name, not the topic.
-        # Without additional metadata there is no way to recover the topic name.
-        # Return None — caller will skip and warn.
         return None
 
     if strategy == STRATEGY_AUTO:
-        # Fell through all auto-detection paths — treat subject as topic name
-        # (last-resort: some teams use plain topic names as subjects)
         logger.debug(
             "Subject %r: no naming strategy matched — using subject name as topic.", subject
         )
@@ -323,23 +289,15 @@ def _extract_topic(subject: str, strategy: str) -> str | None:
     return None
 
 
-# Service extraction
 
 def _extract_services(
     entry: dict,
     topic: str,
     kafka_index: dict[str, dict] | None,
 ) -> tuple[str | None, list[str]]:
-    """Return (producer, consumers) for a subject entry.
-
-    Priority:
-      1. Schema metadata properties: 'owner' / 'consumers'
-      2. Kafka topic index (cross-reference by topic name)
-    """
     producer  = _metadata_owner(entry)
     consumers = _metadata_consumers(entry)
 
-    # Kafka index fallback — fills in whichever is missing
     if kafka_index and topic in kafka_index:
         kafka_entry = kafka_index[topic]
         if not producer:
@@ -374,14 +332,9 @@ def _metadata_consumers(entry: dict) -> list[str]:
     return []
 
 
-# Kafka index builder
 
 def _build_kafka_index(kafka_path: Path) -> dict[str, dict]:
-    """Parse a kafka-topics.json and build a topic → {producer, consumers} index.
-
-    Reuses the same format expected by KafkaAdapter so users don't need
-    two different export formats.
-    """
+    """Parse a kafka-topics.json and build a topic → {producer, consumers} index."""
     try:
         data = json.loads(kafka_path.read_text(encoding="utf-8"))
     except Exception as e:

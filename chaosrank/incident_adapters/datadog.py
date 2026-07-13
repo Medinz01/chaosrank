@@ -15,7 +15,7 @@ from chaosrank.incident_adapters.base import IncidentAdapter, Incident, infer_ty
 
 logger = logging.getLogger(__name__)
 
-# Incident mappings
+
 _INCIDENT_SEVERITY_MAP: dict[str, str] = {
     "sev-1": "critical",
     "sev-2": "high",
@@ -30,11 +30,8 @@ _INCIDENT_SEVERITY_MAP: dict[str, str] = {
     "5": "low",
 }
 
-# Monitor alert_type values are Datadog-specific ("error", "warning", "info").
-# "error" means the monitor fired at critical level — not covered by base map.
-# All other values are passed through normalize_severity() from base.
 _DD_ALERT_TYPE_MAP: dict[str, str] = {
-    "error": "critical",   # Datadog alert_type "error" = monitor in alert state
+    "error": "critical",
 }
 
 
@@ -85,7 +82,6 @@ class DatadogIncidentAdapter(IncidentAdapter):
             }
         )
 
-    # IncidentAdapter contract
 
     def source_format(self) -> str:
         return "datadog"
@@ -116,7 +112,6 @@ class DatadogIncidentAdapter(IncidentAdapter):
         )
         return merged
 
-    # Events API v2 (monitor alerts)
 
     def _fetch_monitor_events(self, from_epoch: int, to_epoch: int) -> list[Incident]:
         """Fetch monitor alert transitions from /api/v2/events."""
@@ -166,16 +161,13 @@ class DatadogIncidentAdapter(IncidentAdapter):
             )
             return None
 
-        # Timestamp: Events API v2 returns epoch seconds in attributes.timestamp
         raw_ts = attrs.get("timestamp")
         if raw_ts is None:
             return None
         timestamp = datetime.fromtimestamp(raw_ts, tz=timezone.utc)
 
-        # Severity from priority tag or alert_type
         severity = self._monitor_severity(attrs, tags)
 
-        # Type from title + message — uses shared infer_type() from base
         title   = attrs.get("title", "")
         message = attrs.get("message", "")
         inc_type = infer_type(f"{title} {message}")
@@ -209,7 +201,6 @@ class DatadogIncidentAdapter(IncidentAdapter):
             return normalize_severity(alert_type)
         return "medium"
 
-    # Incidents API (formal records)
 
     def _fetch_formal_incidents(
         self, from_epoch: int, now: datetime
@@ -328,8 +319,6 @@ class DatadogIncidentAdapter(IncidentAdapter):
                     if name:
                         services.append(name)
 
-        # Fallback: customer_impacted_scope is a free-text field but often
-        # contains a comma-separated service list in practice
         if not services:
             scope = record.get("attributes", {}).get("customer_impacted_scope", "")
             if scope:
@@ -337,9 +326,6 @@ class DatadogIncidentAdapter(IncidentAdapter):
 
         return services
 
-    # ------------------------------------------------------------------
-    # Deduplication
-    # ------------------------------------------------------------------
 
     def _deduplicate(self, incidents: list[Incident]) -> list[Incident]:
         """Remove duplicate incidents.
@@ -374,7 +360,6 @@ class DatadogIncidentAdapter(IncidentAdapter):
 
         return result
 
-    # HTTP helper
 
     def _get(self, url: str, params: dict) -> dict | None:
         """Execute a GET request, return parsed JSON or None on error."""

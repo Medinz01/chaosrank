@@ -1,3 +1,5 @@
+"""Adapter to extract dependencies from raw Kafka topic exports."""
+
 import json
 import logging
 from pathlib import Path

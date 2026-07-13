@@ -1,22 +1,15 @@
+engine:
+  url: http://localhost:8081
+  api_key: devkey
+  timeout_seconds: 30
 weights:
   blast_radius: 0.6
   fragility: 0.4
-
-fragility:
-  decay_lambda: 0.10
-  burst_window_minutes: 5
-
 graph:
   min_call_frequency: 10
   async_weight_factor: 0.5
-
+fragility:
+  decay_lambda: 0.1
+  burst_window_minutes: 5.0
 output:
-  top_n: 5
-
-# Engine connection — point this at your running chaosrank-engine instance.
-# Engine connection — point this at your running chaosrank-engine instance.
-# Start locally: docker run -p 8080:8080 -e CHAOSRANK_API_KEYS=devkey chaosrank-engine
-engine:
-  url: https://eud82a2ib7.execute-api.ap-south-1.amazonaws.com
-  api_key: chaosrank-public-dev   # reads from env var; or paste key directly
-  timeout_seconds: 30
+  top_n: 20

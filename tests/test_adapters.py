@@ -1,3 +1,4 @@
+
 import json
 from pathlib import Path
 
@@ -8,9 +9,6 @@ from chaosrank.adapters.asyncapi import AsyncAPIAdapter
 from chaosrank.adapters.kafka import KafkaAdapter
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def write_yaml(path: Path, data: dict) -> Path:
     path.write_text(yaml.dump(data, default_flow_style=False))
@@ -42,9 +40,6 @@ def kafka_topic(name: str, producer: str, consumers: list[str]) -> dict:
     return {"name": name, "producer": producer, "consumers": consumers}
 
 
-# ---------------------------------------------------------------------------
-# AsyncAPI adapter — edge extraction
-# ---------------------------------------------------------------------------
 
 class TestAsyncAPIEdgeExtraction:
 
@@ -277,8 +272,6 @@ class TestAsyncAPIMalformedInput:
             version="3.0.0",
         )
         write_yaml(tmp_path / "order.yaml", spec)
-        # No consumer — would warn and return empty regardless,
-        # but version check fires first
         deps = AsyncAPIAdapter().convert(tmp_path)
         assert deps == []
 
@@ -328,9 +321,6 @@ class TestAsyncAPIMalformedInput:
         assert len(deps) == 1
 
 
-# ---------------------------------------------------------------------------
-# Kafka adapter — edge extraction
-# ---------------------------------------------------------------------------
 
 class TestKafkaEdgeExtraction:
 

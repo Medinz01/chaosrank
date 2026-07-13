@@ -1,5 +1,7 @@
+"""LitmusChaos manifest generator for automated experiments."""
+
 import yaml
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def render_litmus(ranked: list[dict], top_n: int = 1) -> str:
@@ -20,7 +22,7 @@ def render_litmus(ranked: list[dict], top_n: int = 1) -> str:
                 "namespace": "default",
                 "annotations": {
                     "generated-by": "chaosrank",
-                    "generated-at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "generated-at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                     "risk-score":   str(row["risk"]),
                     "blast-radius": str(row["blast_radius"]),
                     "fragility":    str(row["fragility"]),
