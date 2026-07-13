@@ -10,11 +10,10 @@ ChaosRank follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [1.0.1] — 2026-04-03
 
 ### Added
-- **Public Tier Support:** Introduces a default shared API key (`chaosrank-public-dev`) for immediate out-of-the-box testing.
-- **Access Tiers:** Added documentation for Public vs. Pro keys in `README.md`.
+- **Improved Trace Merging:** Enhanced trace serialization and merging engine.
+- **Async Topology Output:** Better command parsing for `--from kafka`.
 
 ### Changed
-- Defaulted `chaosrank.yaml` to the new public access key.
 - Updated documentation links in `README.md`.
 
 ---
